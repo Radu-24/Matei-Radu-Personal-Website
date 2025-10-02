@@ -1,0 +1,35 @@
+/* ===== Background (vertical waves) – background-only layer ===== */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:#0b0d10; /* dark theme */
+  color:#e7f5ff;
+  font:500 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+  overflow-x:hidden;
+}
+
+/* Fullscreen background host */
+#bg{
+  position:fixed; inset:0; z-index:-1; overflow:hidden; background:#0b0d10;
+}
+
+/* Side SVG canvases for waves */
+.bg-side{
+  position:absolute; top:0; height:100%;
+  width:40vw; min-width:260px; max-width:560px;
+  pointer-events:none;
+}
+.bg-side.left{ left:0 }
+.bg-side.right{ right:0 }
+
+/* Smoothness hint */
+.bg-side path{ will-change: d }
+
+/* Reduce motion: freeze animation */
+@media (prefers-reduced-motion: reduce){
+  .bg-side path{ transition:none; animation:none }
+}
+
+/* A main element so pages are navigable even if empty */
+main{ min-height:100vh }
