@@ -1,33 +1,101 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-  <title>CV</title>
-  <link rel="stylesheet" href="../assets/css/bg.css"/>
-  <link rel="stylesheet" href="../assets/css/ui.css"/>
-  <link rel="stylesheet" href="../assets/css/wip.css"/><!-- NEW -->
-</head>
-<body>
-  <div id="bg" aria-hidden="true"></div>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CV • Matei Radu</title>
 
+  <!-- Global CSS -->
+  <link rel="stylesheet" href="../assets/css/ui.css">
+  <link rel="stylesheet" href="../assets/css/bg.css">
+  <link rel="stylesheet" href="../assets/css/wip.css">
+
+  <!-- CV page CSS -->
+  <link rel="stylesheet" href="../assets/css/cv.css">
+
+  <!-- NEW: CV-only nav lock CSS -->
+  <link rel="stylesheet" href="../assets/css/nav-lock.css">
+</head>
+<body class="cv-page">
+
+  <!-- Waves background root -->
+  <div id="bg"></div>
+
+  <!-- Header/nav (same structure as Home) -->
   <header class="header">
     <nav class="nav" aria-label="Primary">
-      <button class="nav-toggle" aria-label="Menu" aria-expanded="false"><span></span></button>
-      <div class="menu" role="tablist">
-        <span id="hover-blob"></span>
-        <a role="tab" href="../index.html">Home</a>
-        <a role="tab" href="./cv.html">CV</a>
-        <a role="tab" href="./projects.html">Projects</a>
-        <a role="tab" href="./certifications.html">Certifications</a>
+      <button class="nav-toggle" aria-expanded="false" aria-label="Menu"><span></span></button>
+      <div class="menu">
+        <a href="../index.html">Home</a>
+        <a href="./cv.html">CV</a>
+        <a href="./projects.html">Projects</a>
+        <a href="./certifications.html">Certifications</a>
+        <div id="hover-blob"></div>
       </div>
     </nav>
   </header>
 
-  <main></main>
+  <!-- Spacer so content never slides under a fixed header -->
+  <div class="nav-spacer" aria-hidden="true"></div>
 
-  <script src="../assets/js/waves.js"></script>
-  <script src="../assets/js/nav.js"></script>
-  <script src="../assets/js/wip.js"></script><!-- NEW -->
+<main>
+  <section class="cv-hero" aria-label="Profile">
+    <!-- sentinel used to dock exactly under the navbar -->
+    <div class="cv-hero-anchor" aria-hidden="true"></div>
+
+    <!-- the morphing block that docks under the navbar -->
+    <div class="cv-hero-stick">
+      <div class="cv-hero-rail">
+        <div class="cv-avatar">
+          <img src="../files/images/profile_pic.jpg" alt="Matei Radu portrait">
+        </div>
+
+        <div class="cv-titles">
+          <h1 class="cv-name">Matei Radu</h1>
+
+          <!-- subtle chips that remain in the final state -->
+          <ul class="cv-meta" role="list">
+            <li>Cybersecurity &amp; Networks</li>
+            <li>Bucharest, RO</li>
+            <li>Open to internships</li>
+          </ul>
+
+          <!-- helper line for the wide/centered intro; fades out early -->
+          <p class="cv-sub">Hands-on, curious, breaking things to learn how they work — then securing them so they don’t break again.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TEMP scroll area for testing; remove when you add real content -->
+  <section aria-hidden="true" style="height: 1400px"></section>
+</main>
+
+<!-- Page CSS/JS (after your global includes) -->
+<link rel="stylesheet" href="../assets/css/cv.css">
+<script defer src="../assets/js/cv-hero.js"></script>
+
+
+<!-- Page CSS/JS (after your global includes) -->
+<link rel="stylesheet" href="../assets/css/cv.css">
+<script defer src="../assets/js/cv-hero.js"></script>
+
+
+<script defer src="../assets/js/cv-hero.js"></script>
+
+
+<!-- Page-specific morphing logic (AFTER your global includes) -->
+<script defer src="../assets/js/cv-hero.js"></script>
+
+
+  <!-- Global JS -->
+  <script defer src="../assets/js/nav.js"></script>
+  <script defer src="../assets/js/waves.js"></script>
+
+  <!-- CV-only: WIP popup -->
+  <script defer src="../assets/js/wip.js"></script>
+
+  <!-- NEW: CV-only hard lock for navbar (runs AFTER nav.js) -->
+  <script defer src="../assets/js/nav-lock.js"></script>
 </body>
 </html>

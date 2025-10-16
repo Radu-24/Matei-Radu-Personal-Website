@@ -1,33 +1,42 @@
-/* WIP card with toy excavator + cross-page dock/undock animation */
-(function(){
-  const main = document.querySelector("main") || document.body;
+/* NON-CV pages: centered excavator card.
+   CV page: tiny bottom popup (no animations, no close button). */
+(function () {
+  const onCV =
+    /\/pages\/cv\.html$/.test(location.pathname) ||
+    /(^|\/)cv\.html$/.test(location.pathname);
 
-  // ---------- Build card (if not present) ----------
-  let card = document.querySelector(".wip-card");
-  let wrap, titleEl, canvas, pillText;
-
-  function buildCard(){
-    if (card) return;
-    wrap = document.createElement("section");
-    wrap.className = "wip-wrap";
-    wrap.innerHTML = `
-      <article class="wip-card" aria-live="polite">
-        <h2 class="wip-title">Work in progress</h2>
-        <canvas class="wip-canvas" width="340" height="200"></canvas>
-        <span class="wip-pill-text"><span class="wip-emoji">🚧</span> Work in progress <span class="wip-emoji">⚠️</span></span>
-      </article>`;
-    main.appendChild(wrap);
-    card = wrap.querySelector(".wip-card");
-    titleEl = wrap.querySelector(".wip-title");
-    canvas = wrap.querySelector("canvas");
-    pillText = wrap.querySelector(".wip-pill-text");
+  if (onCV) {
+    // ---- CV PAGE: small fixed pill only ----
+    const pill = document.createElement("div");
+    pill.className = "wip-pill";
+    pill.setAttribute("role", "status");
+    pill.setAttribute("aria-live", "polite");
+    pill.innerHTML = `
+      <span class="wip-emoji">🚧</span>
+      <strong>Work in progress</strong>
+      <span class="wip-emoji">⚠️</span>
+    `;
+    document.body.appendChild(pill);
+    return;
   }
-  buildCard();
 
-  // ---------- Toy excavator canvas (unchanged from your last fixed version, abbreviated) ----------
+  // ---- OTHER PAGES: centered glass card with excavator canvas ----
+  const main = document.querySelector("main") || document.body;
+  const wrap = document.createElement("section");
+  wrap.className = "wip-wrap";
+  wrap.innerHTML = `
+    <article class="wip-card" aria-live="polite">
+      <h2 class="wip-title">Work in progress</h2>
+      <canvas class="wip-canvas" width="340" height="200"></canvas>
+    </article>`;
+  main.appendChild(wrap);
+
+  const canvas = wrap.querySelector("canvas");
   const ctx = canvas.getContext("2d");
+
+  // Fit DPI/size
   const BASE_W = 340, BASE_H = 200;
-  function fit() {
+  function fit(){
     const cssW = canvas.clientWidth || canvas.parentElement.getBoundingClientRect().width;
     const cssH = Math.round(cssW * (BASE_H/BASE_W));
     canvas.style.height = cssH + "px";
@@ -39,7 +48,7 @@
   }
   new ResizeObserver(fit).observe(canvas); fit();
 
-  // Colors & helpers
+  // Helpers
   const BLUE="#13348f", Y1="#facc15", Y2="#f59e0b", PURPLE="#6366f1", PURPLE_D="#3f46c5";
   const d2r=d=>d*Math.PI/180;
   function rrect(x,y,w,h,r){const rr=Math.min(r,Math.min(w,h)/2);ctx.beginPath();ctx.moveTo(x+rr,y);ctx.arcTo(x+w,y,x+w,y+h,rr);ctx.arcTo(x+w,y+h,x,y+h,rr);ctx.arcTo(x,y+h,x,y,rr);ctx.arcTo(x,y,x+w,y,rr);ctx.closePath();}
@@ -50,18 +59,30 @@
   const TRACK={x:70,y:152,w:200,h:32,r:16}, INNER={x:82,y:160,w:176,h:16,r:8};
   const PLATFORM={x:138,y:136,w:62,h:22,r:11}, BODY={x:112,y:106,w:84,h:34,r:16};
   const CAB={x:192,y:90,w:46,h:34,r:15}, BASE={x:178,y:110};
-  const L1=70, L2=56; // proportions
+  const L1=70, L2=56;
 
-  // Arm keyframes (from previous “fixed” version)
+  // Arm keyframes
   const KF=[{t:0.0,a1:-28,a2:42,a3:30},{t:0.6,a1:-26,a2:24,a3:12},{t:1.3,a1:-22,a2:18,a3:0},{t:2.0,a1:-25,a2:36,a3:34},{t:2.8,a1:-31,a2:48,a3:42},{t:3.6,a1:-28,a2:42,a3:30}];
-  const CYCLE=3.6; const ease=t=>t*t*(3-2*t);
-  function sampleAngles(sec){const t=sec%CYCLE;for(let i=0;i<KF.length-1;i++){const a=KF[i],b=KF[i+1];if(t>=a.t&&t<=b.t){const u=ease((t-a.t)/(b.t-a.t));return{a1:d2r(a.a1+(b.a1-a.a1)*u),a2:d2r(a.a2+(b.a2-a.a2)*u),a3:d2r(a.a3+(b.a3-a.a3)*u)};}}const z=KF[KF.length-1];return{a1:d2r(z.a1),a2:d2r(z.a2),a3:d2r(z.a3)};}
+  const CYCLE=3.6, ease=t=>t*t*(3-2*t);
+  const sampleAngles = sec => {
+    const t=sec%CYCLE;
+    for(let i=0;i<KF.length-1;i++){
+      const a=KF[i], b=KF[i+1];
+      if(t>=a.t && t<=b.t){
+        const u=ease((t-a.t)/(b.t-a.t));
+        return { a1:d2r(a.a1+(b.a1-a.a1)*u),
+                 a2:d2r(a.a2+(b.a2-a.a2)*u),
+                 a3:d2r(a.a3+(b.a3-a.a3)*u) };
+      }
+    }
+    const z=KF[KF.length-1]; return {a1:d2r(z.a1),a2:d2r(z.a2),a3:d2r(z.a3)};
+  };
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const T0 = performance.now(); let treadShift=0;
 
   function draw(now){
-    const tg=(now-T0)/1000*0.55; const ta=(now-T0)/1000;
+    const tg=(now-T0)/1000*0.55, ta=(now-T0)/1000;
     ctx.clearRect(0,0,BASE_W,BASE_H);
 
     // ground
@@ -78,7 +99,8 @@
     rrect(INNER.x,INNER.y,INNER.w,INNER.h,INNER.r); ctx.clip();
     ctx.fillStyle=PURPLE_D; ctx.fillRect(INNER.x,INNER.y,INNER.w,INNER.h);
     if(!reduceMotion) treadShift=(tg*24)%12;
-    ctx.fillStyle="rgba(255,255,255,.08)"; for(let x=INNER.x-treadShift;x<INNER.x+INNER.w;x+=12) ctx.fillRect(x,INNER.y,6,INNER.h);
+    ctx.fillStyle="rgba(255,255,255,.08)";
+    for(let x=INNER.x-treadShift; x<INNER.x+INNER.w; x+=12) ctx.fillRect(x,INNER.y,6,INNER.h);
     ctx.restore();
 
     // platform
@@ -89,7 +111,8 @@
     // body
     ctx.save(); ctx.translate(0,bounce);
     rrect(BODY.x,BODY.y,BODY.w,BODY.h,BODY.r); stroke(grad(BODY.x,BODY.y,BODY.x+BODY.w,BODY.y+BODY.h),8);
-    ctx.beginPath(); ctx.moveTo(BODY.x+12,BODY.y-8); ctx.lineTo(BODY.x+12,BODY.y); ctx.lineWidth=8; ctx.strokeStyle=BLUE; ctx.lineCap="round"; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(BODY.x+12,BODY.y-8); ctx.lineTo(BODY.x+12,BODY.y);
+    ctx.lineWidth=8; ctx.strokeStyle=BLUE; ctx.lineCap="round"; ctx.stroke();
     ctx.restore();
 
     // cab
@@ -117,57 +140,10 @@
 
     ctx.save(); ctx.translate(L2,0); ctx.rotate(a3);
     ctx.beginPath(); ctx.moveTo(0,-2); ctx.lineTo(16,-7); ctx.quadraticCurveTo(26,-3,22,10); ctx.lineTo(3,8); ctx.closePath();
-    stroke("#fbbf24",8); ctx.restore(); ctx.restore();
+    stroke("#fbbf24",8);
+    ctx.restore(); ctx.restore();
 
     requestAnimationFrame(draw);
   }
   if (!reduceMotion) requestAnimationFrame(draw); else draw(performance.now());
-
-  // ---------- Dock / Undock logic ----------
-  function dockInstant(){ card.classList.add("docked"); }
-  function undockInstant(){ card.classList.remove("docked"); }
-
-  function dockWithAnim(){ card.classList.add("docked"); }
-  function undockWithAnim(){ card.classList.remove("docked"); }
-
-  // ---------- Cross-page coordination ----------
-  // When landing on a page, decide initial state based on target:
-  const onCV = /\/pages\/cv\.html$/.test(location.pathname) || /\/cv\.html$/.test(location.pathname);
-  const flag = sessionStorage.getItem("wipDocked") === "1";
-
-  // If we came here for CV, ensure pill is docked; otherwise undocked
-  if (onCV || flag) dockInstant(); else undockInstant();
-
-  // Intercept top nav clicks to animate before navigating
-  function interceptNav(){
-    const links = Array.from(document.querySelectorAll('.menu a[href]'));
-    links.forEach(a=>{
-      a.addEventListener('click', (e)=>{
-        const href = a.getAttribute('href');
-        if (!href) return;
-        // Determine if destination is CV page
-        const goCV = /cv\.html$/.test(href);
-        e.preventDefault();
-
-        if (goCV){
-          // Animate center → pill, then navigate
-          dockWithAnim();
-          sessionStorage.setItem("wipDocked","1");
-        } else {
-          // Animate pill → center, then navigate
-          undockWithAnim();
-          sessionStorage.removeItem("wipDocked");
-        }
-        // allow CSS transition to play
-        setTimeout(()=>{ location.href = a.href; }, 420);
-      }, {capture:true});
-    });
-  }
-  interceptNav();
-
-  // If user navigates by browser back/forward, keep pill state consistent
-  window.addEventListener('pageshow', ()=>{
-    const f = sessionStorage.getItem("wipDocked")==="1";
-    if (f) dockInstant(); else undockInstant();
-  });
 })();
