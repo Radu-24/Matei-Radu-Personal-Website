@@ -1,33 +1,1968 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-  <title>Home</title>
-  <link rel="stylesheet" href="./assets/css/bg.css"/>
-  <link rel="stylesheet" href="./assets/css/ui.css"/>
-  <link rel="stylesheet" href="./assets/css/wip.css"/><!-- NEW -->
-</head>
-<body>
-  <div id="bg" aria-hidden="true"></div>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Prism Light</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Prism Light v3: Dynamic Island prism menu + Prism dive transition.
+   Performance rules: nothing full-screen is blurred or filtered; page motion uses only transform / opacity / clip-path;
+   the light is drawn on its own thread (Worker + OffscreenCanvas) as small GPU quads, only while it moves; orb and lamp
+   lighting are precomputed keyframes the compositor plays; everything the dive moves is rasterized before it starts. */
+:root{
+  --bg:#05060B; --fg:#EEF0F8; --muted:#8C92A6;
+  --tint:rgba(255,255,255,.08); --rim:rgba(255,255,255,.5);
+  --accent:#FF5A6A;
+  --sans:"Instrument Sans",-apple-system,system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --spring:linear(0,0.009,0.035 2.1%,0.141,0.281 6.7%,0.723 12.9%,0.938 16.7%,1.017,1.077,1.121,1.149 24.3%,1.159,1.163,1.161,1.154 29.9%,1.129 32.8%,1.051 39.6%,1.017 43.1%,0.991,0.977 51%,0.974 53.8%,0.975 57.1%,0.997 69.8%,1.003 76.9%,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;scrollbar-width:none}
+*::-webkit-scrollbar{display:none;width:0;height:0}
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px;line-height:1.55}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+[hidden]{display:none!important}
 
-  <header class="header">
-    <nav class="nav" aria-label="Primary">
-      <button class="nav-toggle" aria-label="Menu" aria-expanded="false"><span></span></button>
-      <div class="menu" role="tablist">
-        <span id="hover-blob"></span>
-        <a role="tab" href="./index.html">Home</a>
-        <a role="tab" href="./pages/cv.html">CV</a>
-        <a role="tab" href="./pages/projects.html">Projects</a>
-        <a role="tab" href="./pages/certifications.html">Certifications</a>
+/* ---------- stage + pages ---------- */
+#stage{position:fixed;inset:0}
+#pages{position:absolute;inset:0}
+.page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;visibility:hidden;z-index:1;contain:layout paint style;-webkit-overflow-scrolling:touch}
+.page.active,.page.warm{visibility:visible}
+/* pages that are not on screen are not styled, laid out or painted at all */
+.page:not(.active):not(.warm){content-visibility:hidden}
+.pw{position:relative;min-height:100%;background:var(--bg)}
+/* soft colour pools: radial gradients instead of blur(80px) circles (same look, no filter, no animation) */
+.pbg{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.pbg::before,.pbg::after{content:"";position:absolute;border-radius:50%}
+.pbg::before{width:104vmax;height:104vmax;left:-35vmax;top:-39vmax;
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--pc) 58%,transparent) 0%,color-mix(in srgb,var(--pc) 42%,transparent) 38%,color-mix(in srgb,var(--pc) 14%,transparent) 72%,transparent 100%)}
+.pbg::after{width:104vmax;height:104vmax;right:-63vmax;bottom:-57vmax;
+  background:radial-gradient(closest-side,color-mix(in srgb,color-mix(in srgb,var(--pc) 55%,#3b2bff) 42%,transparent) 0%,color-mix(in srgb,color-mix(in srgb,var(--pc) 55%,#3b2bff) 28%,transparent) 40%,transparent 100%)}
+.wash{position:absolute;inset:0;opacity:0;pointer-events:none}
+.pc{position:relative;max-width:1100px;margin:0 auto;padding:22vh 24px 18vh;min-height:calc(100% + 40vh)}   /* always enough scroll for the title to leave */
+/* big page title: drifts up, blurs and fades out as the page scrolls.
+   The blur is a pre-blurred copy cross-faded in (opacity only), so the GPU never re-blurs per frame. */
+.page h1{margin:0;font-size:clamp(64px,15vw,210px);font-weight:700;letter-spacing:-.055em;line-height:.86;text-wrap:balance}
+.ttl{position:relative;display:grid}
+.ttl>span{grid-area:1/1}
+.tb{filter:blur(18px);opacity:0;pointer-events:none;user-select:none}
+@supports (animation-timeline:scroll()){
+  .tt{animation:ttOut linear both;animation-timeline:scroll(nearest);animation-range:0 45vh;will-change:opacity,transform}
+  .tb{animation:tbOut linear both;animation-timeline:scroll(nearest);animation-range:0 45vh;will-change:opacity,transform}
+}
+@keyframes ttOut{to{opacity:0;transform:translateY(-14vh) scale(.94)}}
+@keyframes tbOut{0%{opacity:0;transform:none}35%{opacity:.85}100%{opacity:0;transform:translateY(-14vh) scale(.94)}}
+@media (prefers-reduced-motion:reduce){.tt,.tb{animation:none!important}.tb{display:none}}
+.lead{color:#C9CEDA;max-width:46ch;font-size:19px;margin:20px 0 0}
+.row{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+.btn{border:0;cursor:pointer;border-radius:999px;padding:13px 22px;font-weight:600;font-size:15px;color:inherit;transition:scale .5s var(--spring),box-shadow .3s}
+/* buttons are glass too: tinted glass in the page colour for the main action, clear glass for the rest */
+.btn.p{color:#07080D;background:radial-gradient(120% 150% at 28% -10%,rgba(255,255,255,.55),transparent 55%),linear-gradient(180deg,color-mix(in srgb,var(--pc) 84%,#fff),var(--pc) 58%,color-mix(in srgb,var(--pc) 86%,#000));
+  box-shadow:inset 0 1.2px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(0,0,0,.16),inset 0 0 0 1px rgba(255,255,255,.2),0 8px 24px color-mix(in srgb,var(--pc) 32%,transparent)}
+.btn.s{background:radial-gradient(120% 150% at 28% -10%,rgba(255,255,255,.18),transparent 60%),rgba(255,255,255,.06);
+  box-shadow:inset 1.2px 1.2px 0 rgba(255,255,255,.62),inset -1px -1px 0 rgba(255,255,255,.2),inset 0 0 0 1px rgba(255,255,255,.07),inset 0 10px 16px -12px rgba(255,255,255,.34),0 10px 26px rgba(0,0,0,.28);
+  -webkit-backdrop-filter:blur(8px) saturate(1.7);backdrop-filter:blur(8px) saturate(1.7)}
+.t2 .btn.s,.hush .btn.s{-webkit-backdrop-filter:none;backdrop-filter:none}.t2 .btn.s{background:rgba(44,48,62,.92)}
+.btn:hover{scale:1.04}.btn:active{scale:.95;transition-duration:.12s}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:18px;margin-top:44px}
+/* glass cards without backdrop-filter: over a smooth gradient a blur is invisible but costs a GPU pass.
+   The page colour lights the rim at the top left, where the light comes from. */
+.card,.cards .card.lq{position:relative;border-radius:24px;padding:24px;overflow:hidden;
+  --lq-rim:linear-gradient(140deg,color-mix(in srgb,var(--pc) 70%,#fff),color-mix(in srgb,var(--pc) 45%,transparent) 16%,rgba(255,255,255,.07) 34%,rgba(255,255,255,.03) 60%,rgba(255,255,255,.24) 84%,rgba(255,255,255,.58));
+  background:radial-gradient(110% 90% at 0% 0%,color-mix(in srgb,var(--pc) 13%,transparent),transparent 55%),var(--lq-fill);
+  box-shadow:var(--lq-depth),0 20px 50px rgba(0,0,0,.35)}
+.card h3{margin:0 0 6px;font-size:21px;letter-spacing:-.02em}.card p{margin:0;color:#B9BFCC}
+.pre .r{opacity:0}
+.p-home{--pc:#FF5A6A}.p-projects{--pc:#FF9F43}.p-record{--pc:#FFE14D}.p-about{--pc:#5CF59A}.p-contact{--pc:#4DC8FF}
+#dim{position:absolute;inset:0;z-index:2;background:#000;opacity:0;pointer-events:none}
+
+/* frosted top/bottom edges (static, small radius); plain fades on low tiers */
+.edge{position:fixed;left:0;right:0;height:96px;z-index:20;pointer-events:none;transition:opacity .35s;
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.edge.t{top:0;-webkit-mask:linear-gradient(#000 35%,transparent);mask:linear-gradient(#000 35%,transparent)}
+.edge.b{bottom:0;-webkit-mask:linear-gradient(transparent,#000 65%);mask:linear-gradient(transparent,#000 65%)}
+.hush .edge{opacity:0;transition:opacity .15s}
+.t2 .edge{-webkit-backdrop-filter:none;backdrop-filter:none;background:linear-gradient(rgba(5,6,11,.55),transparent)}
+.t2 .edge.b{background:linear-gradient(transparent,rgba(5,6,11,.55))}
+
+
+/* liquid glass rim: bright edge at the top left, fainter at the bottom right, glow under the top edge.
+   Built from inset shadows and one gradient (no masks, no extra GPU layers), so it costs nothing to animate. */
+.lg,#island{box-shadow:inset 1.4px 1.4px 0 rgba(255,255,255,.78),inset -1px -1px 0 rgba(255,255,255,.32),inset 0 0 0 1px rgba(255,255,255,.07),
+  inset 0 12px 20px -14px rgba(255,255,255,.5),inset 0 -12px 20px -16px rgba(255,255,255,.22),0 20px 50px rgba(0,0,0,.42)!important}
+.lg::after,#island::after{content:"";position:absolute;left:0;top:0;width:60%;height:60%;border-radius:inherit;pointer-events:none;z-index:2;transform:none;
+  background:radial-gradient(120% 90% at 0% 0%,rgba(255,255,255,.14),transparent 55%)}
+
+/* ---------- veil: darkness so the light reads ---------- */
+#veil{position:fixed;inset:0;z-index:44;background:rgba(2,3,8,.74);opacity:0;pointer-events:none;transition:opacity .45s}
+#veil.on{opacity:1;pointer-events:auto}
+/* tier 0 only: a static (never animated) 5px blur behind the menu; dropped the moment a transition starts */
+.t0 #veil{-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}
+.hush #veil{-webkit-backdrop-filter:none;backdrop-filter:none}
+
+/* ---------- Dynamic Island ---------- */
+#island{position:fixed;z-index:46;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);
+  width:150px;height:46px;border-radius:23px;border:0;padding:0;cursor:pointer;overflow:hidden;contain:layout paint style;
+  background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.04) 55%,rgba(255,255,255,.08));
+  -webkit-backdrop-filter:blur(14px) saturate(1.7);backdrop-filter:blur(14px) saturate(1.7);
+  transition:scale .5s var(--spring),background .45s}
+#island:hover:not(.open){scale:1.035}
+#island:active:not(.open){scale:.955;transition-duration:.12s}
+#island.open{background:radial-gradient(90% 70% at 12% 0%,rgba(255,255,255,.13),transparent 60%),linear-gradient(172deg,rgba(255,255,255,.08),rgba(255,255,255,.02) 42%,rgba(255,255,255,.05)),rgba(10,12,20,.3);
+  -webkit-backdrop-filter:blur(8px) saturate(1.8);backdrop-filter:blur(8px) saturate(1.8)}
+.t2 #island{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(18,20,28,.86)}
+.t2 #island.open{background:rgba(6,7,12,.9)}
+#island > *{position:absolute;left:50%;top:0;pointer-events:none}
+.iprism{width:100px;height:100px;display:block}
+.iprism svg{width:100%;height:100%;overflow:visible;display:block}
+.ilabel{height:22px;font-weight:600;font-size:14px;letter-spacing:-.01em;white-space:nowrap}
+.ilabel span{position:absolute;left:0;top:0;white-space:nowrap;line-height:22px;transform-origin:0 50%}
+.icap{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--muted);white-space:nowrap;line-height:22px;opacity:0;font-variant-numeric:tabular-nums}
+.idot{width:8px;height:8px;border-radius:50%;background:var(--lampc,var(--accent));box-shadow:0 0 12px var(--lampc,var(--accent));will-change:transform}
+#measure{position:absolute;visibility:hidden;white-space:nowrap;font-weight:600;font-size:14px;letter-spacing:-.01em;left:-999px;top:0}
+
+/* ---------- light (WebGL quads drawn by a worker, premultiplied, composited normally: no CSS blend mode) ---------- */
+#light{position:fixed;left:0;top:0;width:100%;height:100%;z-index:47;pointer-events:none;display:none}
+
+/* ---------- page orbs: glass drawn with gradients (no backdrop-filter, so the moving light costs nothing) ---------- */
+#orbs{position:fixed;inset:0;z-index:48;pointer-events:none}
+.orb{position:absolute;left:0;top:0;width:var(--os,60px);height:var(--os,60px);margin:calc(var(--os,60px)/-2) 0 0 calc(var(--os,60px)/-2);border-radius:50%;
+  padding:0;border:0;background:none;cursor:pointer;opacity:0;pointer-events:none;will-change:transform,opacity;transition:scale .5s var(--spring);
+  -webkit-backdrop-filter:blur(2px) saturate(1.9) brightness(1.1);backdrop-filter:blur(2px) saturate(1.9) brightness(1.1)}
+.t2 .orb{-webkit-backdrop-filter:none;backdrop-filter:none}
+#orbs.on .orb.vis{pointer-events:auto}
+.oin{position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 32% 22%,rgba(255,255,255,.36),rgba(255,255,255,.08) 30%,transparent 56%),radial-gradient(circle at 68% 88%,rgba(255,255,255,.14),transparent 42%),rgba(12,14,24,.2);
+  box-shadow:inset 1.6px 1.6px 0 rgba(255,255,255,.82),inset -1.2px -1.2px 0 rgba(255,255,255,.32),inset 0 0 0 1px rgba(255,255,255,.08),inset 0 9px 14px -8px rgba(255,255,255,.32),inset 0 -10px 16px -8px rgba(255,255,255,.14),0 14px 34px rgba(0,0,0,.45);
+  transition:box-shadow .3s}
+.t2 .oin{background:radial-gradient(circle at 32% 22%,rgba(255,255,255,.26),transparent 56%),rgba(16,18,28,.86)}
+/* orb lighting: glow, icon and label opacities follow the light; the values are keyframes played by the compositor */
+.og{position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle at 50% 58%,color-mix(in srgb,var(--oc) 55%,#fff) 0%,var(--oc) 30%,transparent 72%);
+  opacity:0;will-change:opacity}
+.oin svg{position:relative;width:36%;height:36%;color:var(--oc);opacity:.3;will-change:opacity}
+.orb:hover,.orb:focus-visible{scale:1.08}
+.orb:hover .oin,.orb:focus-visible .oin{box-shadow:inset 1.6px 1.6px 0 rgba(255,255,255,.9),inset -1.2px -1.2px 0 rgba(255,255,255,.36),0 14px 34px rgba(0,0,0,.45),0 0 0 1.5px var(--oc),0 0 26px color-mix(in srgb,var(--oc) 55%,transparent)}
+.orb:focus-visible{outline:none}
+.orb:active{scale:.93;transition-duration:.12s}
+.ol{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);font-size:12.5px;font-weight:600;white-space:nowrap;
+  text-shadow:0 2px 10px rgba(0,0,0,.85);opacity:.15;will-change:opacity}
+.orb.cur .ol::after{content:"";display:block;width:4px;height:4px;margin:4px auto 0;border-radius:50%;background:var(--oc)}
+@media (max-width:560px){.orb{--os:52px}.ol{font-size:11.5px}}
+@media (max-width:419px){.orb{--os:48px}.ol{font-size:11px}}
+
+/* ================= HOME ================= */
+/* texture: faint light ripples (caustics, drawn once at load) and fine film grain; a soft light follows the cursor.
+   Nothing moves on its own, so the GPU idles when nobody is scrolling or pointing. */
+.hbg{position:absolute;left:0;right:0;top:-10vh;bottom:-10vh;pointer-events:none;overflow:hidden}
+.hbg i{position:absolute;inset:0;display:block}
+.hb-field{position:absolute;inset:0}
+/* three soft colour pools (pre-blurred gradients, never a live blur filter); they drift slowly only on the full tier */
+.hb-field i{position:absolute;width:70vmax;height:70vmax;border-radius:50%;will-change:transform}
+.hb-field i:nth-child(1){left:-18vmax;top:30vh;background:radial-gradient(closest-side,rgba(77,200,255,.20),rgba(77,200,255,.07) 55%,transparent)}
+.hb-field i:nth-child(2){right:-22vmax;top:75vh;background:radial-gradient(closest-side,rgba(155,123,255,.20),rgba(155,123,255,.07) 55%,transparent)}
+.hb-field i:nth-child(3){left:18vw;top:120vh;background:radial-gradient(closest-side,rgba(255,159,67,.15),rgba(255,159,67,.05) 55%,transparent)}
+.t0 .hb-field i:nth-child(1){animation:drift1 38s ease-in-out infinite alternate}
+.t0 .hb-field i:nth-child(2){animation:drift2 46s ease-in-out infinite alternate}
+.t0 .hb-field i:nth-child(3){animation:drift3 52s ease-in-out infinite alternate}
+.p-home:not(.active) .hb-field i{animation-play-state:paused}
+@keyframes drift1{to{transform:translate(14vmax,8vmax) scale(1.15)}}
+@keyframes drift2{to{transform:translate(-12vmax,-10vmax) scale(.9)}}
+@keyframes drift3{to{transform:translate(10vmax,-14vmax) scale(1.1)}}
+.hb-grain{opacity:.035;background-size:160px 160px}
+.hlight{position:fixed;left:0;top:0;width:900px;height:900px;margin:-450px 0 0 -450px;border-radius:50%;pointer-events:none;opacity:0;
+  background:radial-gradient(closest-side,rgba(255,236,226,.075),rgba(255,236,226,.02) 55%,transparent);transition:opacity .6s;will-change:transform}
+.t0 .p-home.active .hlight.on{opacity:1}   /* cursor light only on the full tier */
+.rail{position:fixed;left:18px;top:12vh;bottom:12vh;width:2px;border-radius:2px;pointer-events:none;transform-origin:top;transform:scaleY(0);
+  background:linear-gradient(#fff,#FF9F43,#FFE14D,#5CF59A,#4DC8FF);opacity:.6}
+.p-home:not(.active) .rail{display:none}
+
+.home{padding-top:15vh;padding-bottom:14vh}
+.hs{margin-top:14vh}
+.hh{font-size:clamp(30px,4.4vw,52px);letter-spacing:-.035em;margin:0 0 28px;line-height:1}
+
+/* ---------- liquid glass: one material for every surface ----------
+   Apple's Liquid Glass is a clear lens more than frosted glass: little blur, light bent at the edges, a bright rim that
+   catches the light at the top left and, fainter, at the bottom right, and a soft glow inside the top edge that reads as
+   thickness. Here the rim is a masked gradient ring (::before), the thickness two inset glows, the lens a refraction map
+   per element on Chromium (set from script) with blur and saturation as the fallback, and a soft light follows the pointer
+   (::after). Everything is static, so it costs nothing while you scroll; the lite tier swaps the lens for a solid tint. */
+:root{--lq-rim:linear-gradient(140deg,rgba(255,255,255,.95),rgba(255,255,255,.36) 16%,rgba(255,255,255,.07) 34%,rgba(255,255,255,.03) 60%,rgba(255,255,255,.26) 84%,rgba(255,255,255,.62));
+  --lq-fill:radial-gradient(120% 90% at 0% 0%,rgba(255,255,255,.1),transparent 50%),linear-gradient(165deg,rgba(255,255,255,.1),rgba(255,255,255,.03) 42%,rgba(255,255,255,.015) 62%,rgba(255,255,255,.055));
+  --lq-depth:inset 0 16px 24px -18px rgba(255,255,255,.42),inset 0 -14px 24px -18px rgba(255,255,255,.17),inset 0 0 0 1px rgba(255,255,255,.035)}
+.lq{position:relative;isolation:isolate;background:var(--lq-fill);box-shadow:var(--lq-depth),0 22px 54px rgba(0,0,0,.38)}
+.lq::before{content:"";position:absolute;inset:0;z-index:4;border-radius:inherit;padding:1.3px;pointer-events:none;background:var(--lq-rim);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
+.lq::after{content:"";position:absolute;inset:0;z-index:4;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .5s;
+  background:radial-gradient(260px circle at var(--mx,50%) var(--my,0),rgba(255,255,255,.1),transparent 70%)}
+.lq.lit::after{opacity:1}
+.pj.lq::after{display:none}
+.lq.bd{-webkit-backdrop-filter:blur(6px) saturate(1.7);backdrop-filter:blur(6px) saturate(1.7)}
+.t2 .lq.bd,.hush .lq.bd{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.t2 .lq{background:var(--lq-fill),rgba(24,26,36,.86)}
+@media (prefers-contrast:more){.lq{background:rgba(16,18,26,.94)}}
+/* the older glass classes, kept for anything still using them */
+.gl{position:relative;border-radius:26px;
+  background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.03) 46%,rgba(255,255,255,.06));
+  box-shadow:inset 0 12px 22px -14px rgba(255,255,255,.45),inset 0 -12px 22px -16px rgba(255,255,255,.2),0 22px 54px rgba(0,0,0,.4);
+  -webkit-backdrop-filter:blur(3px) saturate(1.6);backdrop-filter:blur(3px) saturate(1.6)}
+.t2 .gl{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(24,26,36,.86)}
+.hush .gl{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+
+/* the grid: different sizes for different jobs */
+.bento{display:grid;grid-template-columns:repeat(12,1fr);grid-auto-rows:minmax(150px,auto);grid-auto-flow:dense;gap:16px;margin-top:5vh}
+.tile{padding:22px;overflow:hidden;color:inherit;font:inherit;text-align:left;border:0;border-radius:26px}
+button.tile{cursor:pointer}
+.tile b{display:block;font-size:19px;letter-spacing:-.02em}
+.tile .sub{display:block;color:#AEB4C4;font-size:14px;margin-top:4px}
+.t-intro{grid-column:span 9;grid-row:span 2;display:flex;flex-direction:column;justify-content:flex-end;padding:30px}
+.t-intro .role{margin:0;font-size:clamp(24px,2.6vw,34px);font-weight:600;letter-spacing:-.025em;line-height:1.15}
+.t-intro .proof{margin:14px 0 0;color:#C9CEDA;font-size:17px;max-width:46ch}
+.t-intro .row{margin-top:22px}
+.t-photo{grid-column:span 3;grid-row:span 2;padding:0;min-height:0;isolation:isolate;background:#000}
+.ch{position:absolute;inset:-4%;display:block;background-image:url(me.webp);background-size:cover;background-position:50% 22%;mix-blend-mode:screen;background-blend-mode:multiply;will-change:transform}
+.c-r{background-color:#f00}.c-g{background-color:#0f0}.c-b{background-color:#00f}
+
+.t-term{grid-column:span 5;grid-row:span 2;display:flex;flex-direction:column;padding:0;font-family:var(--mono);font-size:13.5px;line-height:1.6}
+.term-bar{display:flex;gap:6px;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);color:#8C92A6;font-size:12px}
+.term-bar i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.18)}.term-bar span{margin-left:8px}
+.term-out{flex:1;padding:12px 16px 0;overflow:hidden;white-space:pre-wrap;color:#C9CEDA}
+.term-out .c{color:#fff}.term-out .k{color:#5CF59A}
+.term-in{display:flex;gap:8px;padding:6px 16px 16px;color:#5CF59A;cursor:text}
+.term-in input{flex:1;min-width:0;background:none;border:0;outline:none;color:#fff;font:inherit;caret-color:#5CF59A}
+
+.t-scope{grid-column:span 4;grid-row:span 2;display:flex;flex-direction:column;cursor:crosshair}
+.scope{width:100%;flex:1;min-height:150px;display:block;border-radius:14px;touch-action:pan-y}
+.t-scope .hint{margin:12px 0 0;color:#AEB4C4;font-size:13.5px}
+.sread{display:flex;gap:18px;margin:8px 0 0;font-family:var(--mono);font-size:13px;color:#4DC8FF}.sread b{font-size:13px;font-weight:500}
+
+.t-clock{grid-column:span 3;display:flex;flex-direction:column;justify-content:center}
+.clk{margin:0;display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}
+.clk .hh-m{display:inline;font-size:44px;font-weight:700;letter-spacing:-.04em}
+.clk .ss{font-size:18px;color:#FF5A6A;font-weight:600}
+.clk-l{margin:4px 0 0;color:#AEB4C4;font-size:14px}
+
+.t-rover{grid-column:span 5;display:flex;flex-direction:column;justify-content:space-between;gap:12px}
+.rv-mini{width:min(260px,100%);height:auto;transition:transform .9s cubic-bezier(.3,.7,.2,1)}
+.rv-mini .hull{fill:#30354a;stroke:#b8bfd4;stroke-width:1.5}.rv-mini .track{fill:#15171f;stroke:#6b7186;stroke-width:3;stroke-dasharray:6 5}
+.rv-mini .wheels circle{fill:#2b2f3d;stroke:#6b7186;stroke-width:2}.rv-mini .mast{fill:#2a2e3c}.rv-mini .cam{fill:#FF9F43}
+.t-rover:hover .rv-mini,.t-rover:focus-visible .rv-mini{transform:translateX(18%)}
+.t-rover:hover .track{animation:tread .5s linear infinite}
+@keyframes tread{to{stroke-dashoffset:-22}}
+.tl span{display:block;color:#AEB4C4;font-size:14px;margin-top:2px}
+
+.t-trip{grid-column:span 4;cursor:pointer}
+.breaker{display:flex;align-items:center;gap:14px;height:52px;margin-bottom:10px}
+.breaker svg{width:80px;height:40px;stroke:var(--cc);stroke-width:3;fill:var(--cc);stroke-linecap:round}
+.lever{transform-origin:18px 20px;transform-box:view-box;transition:transform .35s var(--spring)}
+.t-trip.open .lever{transform:rotate(-32deg)}
+.kv{font-family:var(--mono);font-size:22px;color:#fff;font-variant-numeric:tabular-nums}
+.t-trip.open .kv{color:var(--cc)}
+.t-sec{grid-column:span 3;cursor:pointer}
+.scr{display:block;height:52px;line-height:52px;margin-bottom:10px;font-family:var(--mono);font-size:19px;letter-spacing:.04em;color:var(--cc);white-space:nowrap}
+.tile:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+/* robot: scrolling takes it apart, partway */
+.rover-sec{height:210vh;margin-top:10vh}
+.hs.next{content-visibility:auto;contain-intrinsic-size:auto 60vh}
+.rv-stage{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;justify-content:center}
+.rv{position:relative;height:360px;max-width:560px;width:100%;margin:0 auto}
+.rp{position:absolute;left:50%;transform:translateX(-50%);will-change:transform}
+.rp svg{display:block;width:100%;height:100%}
+.rp-cam{top:40px;width:120px;height:70px;margin-left:70px}
+.rp-cam svg{fill:#2a2e3c;stroke:#FF9F43;stroke-width:1.5}.rp-cam .lens{fill:#FF9F43}
+.rp-el{top:104px;width:300px;height:40px}
+.rp-el svg{fill:#242838;stroke:#8A90A6;stroke-width:1}.rp-el .pcb{fill:#1d3b2b;stroke:#5CF59A}
+.rp-body{top:140px;width:320px;height:70px}
+.rp-body svg{fill:#30354a;stroke:#b8bfd4;stroke-width:1.5}
+.rp-trk{top:200px;width:360px;height:80px}
+.rp-trk svg{fill:#15171f;stroke:#6b7186;stroke-width:3}.rp-trk circle{fill:#2b2f3d}
+.lb{position:absolute;left:calc(100% + 18px);top:50%;transform:translateY(-50%);font-size:13px;color:#C9CEDA;white-space:nowrap;opacity:0}
+.lb::before{content:"";display:inline-block;width:22px;height:1px;background:#8C92A6;vertical-align:middle;margin-right:8px}
+.hud{position:absolute;right:0;top:0;padding:10px 14px;border-radius:16px;display:flex;flex-direction:column;gap:4px;font-size:12px}
+.hud i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#5CF59A;margin-right:8px}
+.rv-cta{align-self:center;margin-top:34px}
+
+/* where to next: the pages as bars of light */
+.bars{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;height:40vh;min-height:260px}
+.bar{position:relative;border:0;border-radius:24px;cursor:pointer;overflow:hidden;text-align:left;padding:20px;display:flex;flex-direction:column;justify-content:flex-end;color:#fff;font:inherit;
+  background:linear-gradient(to top,color-mix(in srgb,var(--bc) 34%,transparent),color-mix(in srgb,var(--bc) 6%,transparent) 70%);
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.35),inset 0 -2px 0 var(--bc);transition:transform .5s var(--spring)}
+.bar::before{content:"";position:absolute;inset:0;background:linear-gradient(to top,var(--bc),transparent 75%);opacity:0;transition:opacity .35s}
+.bar.main::before{opacity:.35}
+.bar:hover,.bar:focus-visible{transform:translateY(-8px)}
+.bar:hover::before,.bar:focus-visible::before{opacity:.75}
+.bar b{position:relative;font-size:24px;letter-spacing:-.02em}
+.bar span{position:relative;font-size:14px;color:#E8EAF2;opacity:.75;transform:translateY(6px);transition:opacity .35s,transform .45s var(--spring)}
+.bar:hover span{opacity:1;transform:none}
+
+/* details sheet */
+#sheet{position:fixed;inset:0;z-index:52;display:grid;place-items:center;padding:20px}
+.sh-bg{position:absolute;inset:0;background:rgba(2,3,8,.55)}
+.sh{position:relative;width:min(560px,100%);padding:30px 30px 28px;border-radius:32px;background:var(--lq-fill),rgba(18,20,30,.66)}
+.sh h3{margin:0 0 12px;font-size:28px;letter-spacing:-.025em}.sh p{color:#C9CEDA;margin:0 0 10px}.sh .btn{margin-top:14px}
+.sh .btn.p{background:var(--cc);color:#07080D}
+.sh-x{position:absolute;right:14px;top:12px;z-index:5;border:0;color:inherit;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:20px;line-height:1;
+  background:radial-gradient(circle at 32% 22%,rgba(255,255,255,.2),transparent 60%),rgba(255,255,255,.07);box-shadow:inset 1.2px 1.2px 0 rgba(255,255,255,.6),inset -1px -1px 0 rgba(255,255,255,.18);transition:scale .4s var(--spring)}
+.sh-x:hover{scale:1.08}.sh-x:active{scale:.92}
+
+@supports (animation-timeline:view()){
+  .rail{animation:railGrow linear both;animation-timeline:scroll(nearest)}
+  .hb-field{animation:par2 linear both;animation-timeline:scroll(nearest)}
+  .rise{animation:riseIO linear both;animation-timeline:view();animation-range:cover 0% cover 100%}
+  .rover-sec{view-timeline-name:--rov}
+  .rp-cam{animation:rCam linear both;animation-timeline:--rov;animation-range:contain 5% contain 70%}
+  .rp-el{animation:rEl linear both;animation-timeline:--rov;animation-range:contain 5% contain 70%}
+  .rp-trk{animation:rTrk linear both;animation-timeline:--rov;animation-range:contain 5% contain 70%}
+  .lb{animation:lbIn linear both;animation-timeline:--rov;animation-range:contain 40% contain 75%}
+  .bar{animation:barIn linear both;animation-timeline:view();animation-range:entry 0% cover 40%}
+}
+@supports not (animation-timeline:view()){.rp-cam{transform:translateX(-50%) translateY(-60px)}.rp-trk{transform:translateX(-50%) translateY(40px)}.lb{opacity:1}}
+@keyframes railGrow{to{transform:scaleY(1)}}
+@keyframes par2{to{transform:translateY(-12vh)}}
+@keyframes riseIO{0%{opacity:0;filter:blur(10px);transform:translateY(40px)}30%,72%{opacity:1;filter:blur(0);transform:none}100%{opacity:0;filter:blur(10px);transform:translateY(-40px)}}
+@keyframes rCam{to{transform:translateX(-50%) translateY(-120px)}}
+@keyframes rEl{to{transform:translateX(-50%) translateY(-56px)}}
+@keyframes rTrk{to{transform:translateX(-50%) translateY(70px)}}
+@keyframes lbIn{to{opacity:1}}
+@keyframes barIn{from{opacity:0;translate:0 60px}to{opacity:1;translate:0 0}}
+
+@media (max-width:980px){.bento{grid-template-columns:repeat(6,1fr)}.t-intro{grid-column:span 4}.t-photo{grid-column:span 2}.t-term,.t-rover{grid-column:span 6}.t-scope,.t-trip{grid-column:span 6}.t-clock,.t-sec{grid-column:span 3}}
+@media (max-width:600px){
+  .bento{grid-template-columns:1fr 1fr;gap:12px}.t-intro,.t-term,.t-scope,.t-rover{grid-column:span 2}.t-photo{grid-column:span 1;grid-row:span 1;min-height:190px}.t-clock,.t-trip,.t-sec{grid-column:span 1}.t-trip{grid-column:span 2}
+  .clk .hh-m{font-size:34px}
+  .bars{grid-template-columns:1fr 1fr;height:auto}.bar{min-height:150px}
+  .rv{transform:scale(.72);transform-origin:top center}.lb{display:none}.rail{left:8px}
+}
+@media (prefers-reduced-motion:reduce){.hb-field i,.rail,.rise,.rp,.lb,.bar{animation:none!important}.lb{opacity:1}.rv-mini{transition:none}}
+
+
+/* ================= PROJECTS ================= */
+.plist{display:grid;grid-template-columns:repeat(6,1fr);gap:20px;margin-top:7vh}
+.pjw{grid-column:span 3;perspective:1400px;display:flex}
+.pjw.big{grid-column:1/-1}.pjw.sm{grid-column:span 3}
+.pj{position:relative;display:block;flex:1;min-width:0;border:0;padding:0;margin:0;color:inherit;font:inherit;text-align:left;border-radius:30px;overflow:hidden;
+  transform-style:flat;transition:transform .7s var(--spring);will-change:transform}
+button.pj{cursor:pointer}
+.pj .gl-s{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+/* a soft light that follows the pointer across the card */
+.pj .sheen{position:absolute;left:0;top:0;width:520px;height:520px;margin:-260px 0 0 -260px;border-radius:50%;pointer-events:none;opacity:0;z-index:1;
+  background:radial-gradient(closest-side,rgba(255,255,255,.13),rgba(255,255,255,.04) 50%,transparent);transition:opacity .45s;will-change:transform}
+.pj:hover .sheen{opacity:1}
+.pj-in{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;padding:28px 28px 26px}
+.pj .no{font-family:var(--mono);font-size:12.5px;color:var(--muted);letter-spacing:.04em}
+.pj h2{margin:10px 0 8px;font-size:clamp(26px,3vw,36px);letter-spacing:-.035em;line-height:1.02}
+.pj p.d{margin:0;color:#C2C7D4;font-size:16px;max-width:44ch}
+.tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:auto;padding-top:20px}
+.tags span{font-size:12.5px;padding:5px 11px;border-radius:999px;color:#D5D9E4;
+  background:radial-gradient(120% 160% at 28% -20%,rgba(255,255,255,.14),transparent 60%),rgba(255,255,255,.05);
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.42),inset -1px -1px 0 rgba(255,255,255,.12),inset 0 0 0 1px rgba(255,255,255,.05);
+  transition:transform .5s var(--spring),background .3s}
+.pj:hover .tags span{background:rgba(255,255,255,.11)}
+.pj:hover .tags span:nth-child(1){transform:translateY(-3px);transition-delay:0s}.pj:hover .tags span:nth-child(2){transform:translateY(-3px);transition-delay:.04s}
+.pj:hover .tags span:nth-child(3){transform:translateY(-3px);transition-delay:.08s}.pj:hover .tags span:nth-child(4){transform:translateY(-3px);transition-delay:.12s}
+
+/* the rover card: info on the left, the live 3D model on the right */
+.pj.rover{min-height:min(74vh,620px);display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr)}
+.pj.rover .pj-in{padding:40px 10px 36px 40px;justify-content:center}
+.pj.rover h2{font-size:clamp(40px,5.4vw,74px);margin:14px 0 14px;letter-spacing:-.05em;line-height:.92}
+.pj.rover p.d{font-size:18px}
+.pj.rover .tags{margin-top:26px;padding-top:0}
+.pj.rover .tags span{font-size:13.5px;padding:7px 13px}
+.go-pill{display:inline-flex;align-items:center;gap:10px;margin-top:30px;align-self:flex-start;padding:12px 14px 12px 20px;border-radius:999px;font-weight:600;font-size:15px;
+  color:#0A0B10;background:radial-gradient(120% 150% at 28% -10%,rgba(255,255,255,.55),transparent 55%),linear-gradient(180deg,color-mix(in srgb,var(--pc) 84%,#fff),var(--pc) 58%,color-mix(in srgb,var(--pc) 86%,#000));
+  box-shadow:inset 0 1.2px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(0,0,0,.16),inset 0 0 0 1px rgba(255,255,255,.2),0 10px 30px color-mix(in srgb,var(--pc) 32%,transparent);transition:gap .5s var(--spring),padding .5s var(--spring)}
+.go-pill i{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.14);transition:transform .5s var(--spring)}
+.go-pill svg{width:14px;height:14px}
+.pj.rover:hover .go-pill{gap:16px;padding-right:12px}.pj.rover:hover .go-pill i{transform:rotate(-45deg)}
+.rvc-stage{position:relative;z-index:2;min-height:300px}
+.rvc-stage::before{content:"";position:absolute;left:8%;right:8%;top:14%;bottom:6%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--pc) 22%,transparent),transparent);opacity:.75;transition:opacity .6s,transform .9s var(--spring)}
+.pj.rover:hover .rvc-stage::before{opacity:1;transform:scale(1.08)}
+.rv-slot{position:absolute;inset:0}
+.rv-slot canvas{display:block;width:100%;height:100%}
+.rv-fb{position:absolute;left:50%;top:50%;width:min(78%,420px);transform:translate(-50%,-50%);opacity:.9}
+.rv-ready .rv-fb{display:none}
+.rv-hint{position:absolute;right:22px;bottom:18px;z-index:3;font-family:var(--mono);font-size:11.5px;color:var(--muted);letter-spacing:.05em;display:flex;gap:8px;align-items:center}
+.rv-hint i{width:6px;height:6px;border-radius:50%;background:#5CF59A;box-shadow:0 0 10px #5CF59A}
+
+/* small visuals on the other cards; each one plays on hover */
+.pv{position:relative;height:120px;margin:4px 0 18px;border-radius:18px;background:rgba(0,0,0,.18);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden}
+.pv-pass{display:flex;flex-direction:column;justify-content:center;gap:14px;padding:0 22px}
+.pv-pass .fld{height:40px;border-radius:12px;background:rgba(255,255,255,.07);display:flex;align-items:center;padding:0 14px;font-family:var(--mono);font-size:15px;letter-spacing:.18em;color:#fff;position:relative}
+.pv-pass .fld b{font-weight:400;transition:opacity .3s}.pv-pass .fld em{position:absolute;left:14px;font-style:normal;letter-spacing:.02em;opacity:0;transition:opacity .3s}
+.pj:hover .pv-pass .fld b{opacity:0}.pj:hover .pv-pass .fld em{opacity:1}
+.pv-pass .bar2{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden}
+.pv-pass .bar2 i{display:block;height:100%;width:100%;border-radius:inherit;transform-origin:left;transform:scaleX(.22);background:linear-gradient(90deg,#FF5A6A,#FFE14D 55%,#5CF59A);
+  transition:transform 1.1s var(--spring)}
+.pj:hover .pv-pass .bar2 i{transform:scaleX(.94)}
+.pv-pass .st{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}.pv-pass .st b{font-weight:600;color:#FF5A6A;transition:color .4s}
+.pj:hover .pv-pass .st b{color:#5CF59A}
+.pv-trip svg{position:absolute;inset:0;width:100%;height:100%}
+.pv-trip .arc{fill:none;stroke:rgba(255,255,255,.28);stroke-width:1.5;stroke-dasharray:4 6}
+.pv-trip .city{fill:#FF9F43}.pv-trip text{fill:#C2C7D4;font-size:11px;font-family:var(--mono)}
+.pv-trip .plane{offset-path:path("M40 92 Q 170 -10 300 70");offset-distance:8%;offset-rotate:auto;transition:offset-distance 1.4s cubic-bezier(.3,.6,.2,1)}
+.pj:hover .pv-trip .plane{offset-distance:92%}
+.pv-lab svg{position:absolute;inset:0;width:100%;height:100%}
+.pv-lab line{stroke:rgba(255,255,255,.18);stroke-width:1.2}
+.pv-lab circle{fill:#1b1e2a;stroke:#8C92A6;stroke-width:1.5;transition:fill .3s,stroke .3s}
+.pv-lab .pk{fill:#5CF59A;opacity:0;offset-path:path("M60 60 L 160 30 L 260 62 L 330 34")}
+.pj:hover .pv-lab .pk{animation:pkt 1.6s linear infinite}
+.pj:hover .pv-lab circle{stroke:#5CF59A}
+.pj:hover .pv-lab circle.hit{fill:#FF5A6A;stroke:#FF5A6A;transition-delay:.9s}
+@keyframes pkt{0%{offset-distance:0%;opacity:1}90%{opacity:1}100%{offset-distance:100%;opacity:0}}
+.pv-whist{display:grid;place-items:center}
+.pv-whist i{position:absolute;left:50%;top:50%;width:46px;height:66px;margin:-33px 0 0 -23px;border-radius:7px;background:linear-gradient(160deg,#fff,#dfe3ee);
+  box-shadow:0 6px 16px rgba(0,0,0,.4);display:grid;place-items:center;font-style:normal;font-weight:700;font-size:17px;color:#111;transform-origin:50% 150%;
+  transition:transform .8s var(--spring)}
+.pv-whist i.r{color:#e0293f}
+.pv-whist i:nth-child(1){transform:rotate(-6deg)}.pv-whist i:nth-child(2){transform:rotate(-2deg)}.pv-whist i:nth-child(3){transform:rotate(2deg)}.pv-whist i:nth-child(4){transform:rotate(6deg)}
+.pj:hover .pv-whist i:nth-child(1){transform:rotate(-30deg)}.pj:hover .pv-whist i:nth-child(2){transform:rotate(-10deg)}
+.pj:hover .pv-whist i:nth-child(3){transform:rotate(10deg)}.pj:hover .pv-whist i:nth-child(4){transform:rotate(30deg)}
+.soon{position:absolute;right:20px;top:22px;font-size:12px;color:var(--muted);font-family:var(--mono);z-index:3}
+
+/* the card itself rises in (not its wrapper): a fading wrapper would cut the card's glass off from what is behind it */
+@supports (animation-timeline:view()){
+  .pj{animation:pjIn linear both;animation-timeline:view();animation-range:entry 0% cover 28%}
+}
+@keyframes pjIn{from{opacity:0;translate:0 70px;scale:.94}to{opacity:1;translate:0 0;scale:1}}
+
+@media (max-width:860px){
+  .pj.rover{grid-template-columns:1fr;grid-template-rows:auto auto;min-height:0}
+  .pj.rover .rvc-stage{order:-1;height:46vh;min-height:260px}
+  .pj.rover .pj-in{padding:6px 24px 28px}
+  .pjw,.pjw.sm{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){.pj{animation:none!important}}
+
+.pj.tilt{transition:transform .3s cubic-bezier(.2,.7,.3,1)}
+/* the card's glass, laid over the project page while it grows out of the card and fades away */
+.skin{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0;border-radius:inherit;
+  background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.03) 46%,rgba(255,255,255,.06))}
+
+/* ================= DATALINK ROVER (pick screen + three stories) ================= */
+.p-dl{--pc:#FF9F43}
+.p-dl .pw{background:#030407}
+.dl-bg{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.dl-bg i{position:absolute;inset:0;opacity:0;transition:opacity .9s cubic-bezier(.4,0,.2,1)}
+.p-dl[data-bg=select] .b-sel,.p-dl[data-bg=rover] .b-rover,.p-dl[data-bg=remote] .b-remote,.p-dl[data-bg=link] .b-link{opacity:1}
+/* pick screen: two spotlights and a faint horizon */
+.b-sel{background:radial-gradient(42% 46% at 76% 34%,rgba(255,159,67,.13),transparent 72%),radial-gradient(42% 46% at 24% 34%,rgba(77,200,255,.12),transparent 72%),
+  linear-gradient(180deg,transparent 52%,rgba(130,150,200,.07) 64%,transparent 82%),#030407}
+/* rover: warm ground glow over faint terrain lines (drawn once at load) */
+.b-rover{background:radial-gradient(70% 55% at 50% 78%,rgba(255,159,67,.17),transparent 70%),radial-gradient(60% 40% at 50% 0%,rgba(255,120,60,.06),transparent 70%),#060403}
+.b-rover::after{content:"";position:absolute;inset:0;background-image:var(--topo,none);background-size:cover;background-position:center;opacity:.5;
+  -webkit-mask-image:radial-gradient(75% 70% at 50% 60%,#000,transparent);mask-image:radial-gradient(75% 70% at 50% 60%,#000,transparent)}
+/* controller: cool glow over a fine dot grid */
+.b-remote{background:radial-gradient(60% 55% at 50% 55%,rgba(77,140,255,.16),transparent 72%),#03050b}
+.b-remote::after{content:"";position:absolute;inset:0;background:radial-gradient(rgba(150,180,255,.22) 1px,transparent 1.6px) 0 0/22px 22px;
+  -webkit-mask-image:radial-gradient(65% 60% at 50% 55%,#000,transparent);mask-image:radial-gradient(65% 60% at 50% 55%,#000,transparent)}
+/* link: a dark grid with a cyan glow */
+.b-link{background:radial-gradient(55% 50% at 50% 50%,rgba(60,210,255,.12),transparent 72%),#020508}
+.b-link::after{content:"";position:absolute;inset:0;background:linear-gradient(rgba(90,220,255,.07) 1px,transparent 1px) 0 0/48px 48px,linear-gradient(90deg,rgba(90,220,255,.07) 1px,transparent 1px) 0 0/48px 48px;
+  -webkit-mask-image:radial-gradient(60% 55% at 50% 50%,#000,transparent);mask-image:radial-gradient(60% 55% at 50% 50%,#000,transparent)}
+.dl-stage{position:sticky;top:0;height:var(--sh,100vh);overflow:clip;z-index:1}
+.dl-slot{position:absolute;inset:0;z-index:2}
+.dl-slot canvas{display:block;width:100%;height:100%}
+/* the giant title that sits behind the model */
+.dl-ttl{position:absolute;left:0;right:0;top:37%;z-index:1;display:grid;place-items:center;pointer-events:none;transform:translateY(-50%)}
+.dl-ttl span{grid-area:1/1;font-size:clamp(110px,25vw,400px);font-weight:700;letter-spacing:-.065em;line-height:.8;white-space:nowrap;opacity:0;
+  transform:translateY(6vh) scale(.94);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform 1.1s cubic-bezier(.2,.7,.2,1);
+  background:linear-gradient(180deg,rgba(255,255,255,.92),color-mix(in srgb,var(--tc) 55%,transparent) 70%,transparent);-webkit-background-clip:text;background-clip:text;color:transparent}
+.dl-ttl [data-for=rover]{--tc:#FF9F43}.dl-ttl [data-for=remote]{--tc:#5B8CFF;font-size:clamp(84px,17vw,300px)}.dl-ttl [data-for=link]{--tc:#4DE1FF}
+.p-dl[data-mode=rover] .dl-ttl [data-for=rover],.p-dl[data-mode=remote] .dl-ttl [data-for=remote],.p-dl[data-mode=link] .dl-ttl [data-for=link]{opacity:1;transform:none;transition-delay:.38s}
+@supports (animation-timeline:scroll()){
+  .dl-ttl{animation:dlTtl linear both;animation-timeline:scroll(nearest);animation-range:0 calc(var(--sh,100vh)*.7)}
+  .dl-cue{animation:dlCue linear both;animation-timeline:scroll(nearest);animation-range:0 calc(var(--sh,100vh)*.25)}
+}
+@keyframes dlTtl{to{opacity:0;transform:translateY(calc(-50% - 12vh)) scale(.92)}}
+@keyframes dlCue{to{opacity:0}}
+/* pick screen overlay */
+.dl-sel{position:absolute;inset:0;z-index:4;pointer-events:none;transition:opacity .45s}
+.p-dl:not([data-mode=select]) .dl-sel{opacity:0;visibility:hidden;transition:opacity .3s,visibility 0s .3s}
+.sel-hd{position:absolute;left:max(24px,5vw);top:calc(96px + env(safe-area-inset-top,0px));max-width:min(560px,90vw)}
+.sel-k{margin:0 0 12px;font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;color:var(--muted)}
+.dl-sel .sel-t{margin:0;font-size:clamp(38px,4.6vw,68px);font-weight:700;letter-spacing:-.05em;line-height:.9;transform-origin:0 0}
+.sel-s{margin:14px 0 0;color:#AEB4C4;font-size:16px}
+.pick{position:absolute;left:0;top:0;border:0;padding:0;margin:0;background:none;color:inherit;font:inherit;cursor:pointer;pointer-events:auto;will-change:transform;
+  -webkit-tap-highlight-color:transparent}
+.pick:focus-visible{outline:none}
+.pick .pk-l{position:absolute;left:50%;bottom:0;transform:translate(-50%,0);display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;width:max-content;max-width:260px}
+.pk-n{font-size:clamp(22px,2.2vw,30px);font-weight:700;letter-spacing:-.03em;transition:color .3s}
+.pk-s{font-size:13.5px;color:#9AA1B4;transition:color .3s}
+.pk-go{margin-top:10px;display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;font-size:13.5px;font-weight:600;color:#06070b;
+  background:radial-gradient(120% 150% at 28% -10%,rgba(255,255,255,.55),transparent 55%),linear-gradient(180deg,color-mix(in srgb,var(--c) 84%,#fff),var(--c) 58%,color-mix(in srgb,var(--c) 86%,#000));
+  opacity:0;transform:translateY(6px) scale(.92);transition:opacity .3s,transform .5s var(--spring);
+  box-shadow:inset 0 1.2px 0 rgba(255,255,255,.8),inset 0 -1px 0 rgba(0,0,0,.16),inset 0 0 0 1px rgba(255,255,255,.2),0 8px 26px color-mix(in srgb,var(--c) 38%,transparent)}
+.pk-bar{width:28px;height:2px;border-radius:2px;background:var(--c);opacity:.55;margin:6px 0 2px;transition:width .5s var(--spring),opacity .3s}
+.pick.hot .pk-n{color:var(--c)}.pick.hot .pk-s{color:#D8DCE6}.pick.hot .pk-go{opacity:1;transform:none}.pick.hot .pk-bar{width:56px;opacity:1}
+.dl-sel.has-hot .pick:not(.hot) .pk-l{opacity:.5}
+.pick .pk-l{transition:opacity .3s}
+.sel-help{position:absolute;left:0;right:0;bottom:calc(22px + env(safe-area-inset-bottom,0px));margin:0;text-align:center;font-family:var(--mono);font-size:12px;color:#5d6375;letter-spacing:.04em}
+@media (pointer:coarse){.sel-help{display:none}}
+@media (max-width:560px){.pick[data-pick=link] .pk-l{max-width:132px;white-space:normal}.pick[data-pick=link] .pk-s,.pick[data-pick=link] .pk-go{display:none}.sel-hd{top:calc(78px + env(safe-area-inset-top,0px))}.dl-sel .sel-t{font-size:34px}.sel-k{font-size:11.5px;margin-bottom:8px}.sel-s{font-size:14px;margin-top:8px}.sel-help{display:none}}
+/* labels on the taken-apart model */
+.dl-tags{position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .35s}
+.dl-tags.on{opacity:1}
+.tag{position:absolute;left:0;top:0;display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:13px;font-weight:600;color:#E8EBF2;will-change:transform}
+.tag i{width:7px;height:7px;border-radius:50%;background:var(--tc,#fff);box-shadow:0 0 10px var(--tc,#fff);flex:none}
+.tag b{font-weight:600;padding:5px 10px;border-radius:999px;background:radial-gradient(120% 160% at 28% -20%,rgba(255,255,255,.16),transparent 60%),rgba(12,14,20,.62);
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.5),inset -1px -1px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.05)}
+.tag.r{flex-direction:row-reverse}
+.tag.small b{font-size:12px;padding:4px 9px}
+/* progress for the parts */
+.dl-hud{position:absolute;left:max(24px,4vw);bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:4;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12.5px;color:#AEB4C4;
+  opacity:0;transform:translateY(8px);transition:opacity .35s,transform .45s var(--spring);pointer-events:none}
+.dl-hud.on{opacity:1;transform:none}
+.dl-hud .hb{width:120px;height:2px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden}
+.dl-hud .hb i{display:block;height:100%;background:var(--tc,#fff);transform-origin:left;transform:scaleX(0);transition:transform .3s}
+.dl-hud .ht{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34vw}
+@media (max-width:560px){.dl-hud .ht{display:none}}
+.dl-cue{position:absolute;left:0;right:0;bottom:calc(26px + env(safe-area-inset-bottom,0px));z-index:4;margin:0;text-align:center;font-size:13.5px;color:#AEB4C4;pointer-events:none;opacity:0;transition:opacity .4s}
+.p-dl:not([data-mode=select]) .dl-cue{opacity:1}
+.dl-cue::after{content:"";display:block;width:1.5px;height:26px;margin:10px auto 0;background:linear-gradient(#AEB4C4,transparent)}
+/* the stories */
+.dl-story{position:relative;z-index:5;margin-top:calc(var(--sh,100vh)*-1);display:none}
+.p-dl[data-mode=rover] .dl-story[data-for=rover],.p-dl[data-mode=remote] .dl-story[data-for=remote],.p-dl[data-mode=link] .dl-story[data-for=link]{display:block}
+.seg{position:relative;display:flex;align-items:center;padding:0 max(24px,6vw);pointer-events:none}
+.seg.mid{justify-content:center}
+.sc{pointer-events:auto;width:min(400px,100%);padding:26px 26px 22px;border-radius:26px;
+  background:var(--lq-fill),rgba(12,14,22,.56);box-shadow:var(--lq-depth),0 24px 60px rgba(0,0,0,.42)}
+.sc.bd{-webkit-backdrop-filter:blur(14px) saturate(1.6);backdrop-filter:blur(14px) saturate(1.6)}
+.t2 .sc{background:var(--lq-fill),rgba(16,18,28,.93)}
+.seg.mid .sc{transform:translateY(calc(var(--sh,100vh)*.3));text-align:center;width:min(440px,100%)}
+.sc .n{display:block;font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;color:var(--tc);margin-bottom:10px}
+.sc h3{margin:0 0 10px;font-size:clamp(24px,2.4vw,30px);letter-spacing:-.03em;line-height:1.05}
+.sc p{margin:0;color:#C2C7D4;font-size:16px}
+.sc p+p{margin-top:10px}
+.todo{font-size:13.5px!important;color:#8C92A6!important;padding:8px 12px;border-radius:12px;border:1px dashed rgba(255,255,255,.18)}
+.dl-story[data-for=rover]{--tc:#FF9F43}.dl-story[data-for=remote]{--tc:#6E9BFF}.dl-story[data-for=link]{--tc:#4DE1FF}
+/* phones and portrait screens: the model (or the diagram) on top, the card resting just above the progress line */
+@media (max-width:760px),(max-aspect-ratio:9/10){.seg{align-items:center;justify-content:center}
+  .seg:not(.mid) .sc{transform:translateY(calc(var(--sh,100vh)*.5 - 50% - 74px - env(safe-area-inset-bottom,0px)))}.seg.mid .sc{transform:translateY(calc(var(--sh,100vh)*.3))}}
+/* after the 3D story: code, video, photos */
+.after{position:relative;padding:12vh max(24px,6vw) 18vh;max-width:1100px;margin:0 auto}
+.after h2{margin:16vh 0 22px;font-size:clamp(30px,4.4vw,52px);letter-spacing:-.04em;line-height:1}
+.after h2:first-child{margin-top:0}
+.after .al{margin:30px 0 14px;color:#AEB4C4;max-width:62ch}
+.after h2+.al{margin-top:0}
+.sc code,.after .al code{font-family:var(--mono);font-size:.88em;padding:1px 6px;border-radius:7px;background:rgba(255,255,255,.07)}
+.sc .kv{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.sc .kv span{font-family:var(--mono);font-size:12.5px;padding:5px 10px;border-radius:999px;color:var(--tc);background:color-mix(in srgb,var(--tc) 12%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tc) 30%,transparent)}
+.sc .pk code{display:block;padding:10px 12px;border-radius:12px;font-size:11.5px;line-height:1.5;word-break:break-all;color:#d9f6ff;background:rgba(77,225,255,.07);box-shadow:inset 0 0 0 1px rgba(77,225,255,.22)}
+/* code: a glass sheet with a terminal bar */
+.code{position:relative;border-radius:22px;overflow:hidden;background:var(--lq-fill),rgba(8,10,16,.8);box-shadow:var(--lq-depth),0 24px 60px rgba(0,0,0,.45)}
+.code .cb{display:flex;gap:7px;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-family:var(--mono);font-size:12px;color:#8C92A6}
+.code .cb i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.16)}.code .cb span{margin-left:8px}
+.code pre{margin:0;padding:18px 20px 22px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.7;color:#C9CEDA;tab-size:4}
+.code .c{color:#6b7286}.code .k{color:var(--tc)}.code .f{color:#9fd7ff}.code .s{color:#b8e986}.code .n{color:#f5c36b}
+/* photos: glass frames, a little zoom on hover */
+.gal{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.ph{position:relative;margin:0;border-radius:22px;overflow:hidden;background:var(--lq-fill);box-shadow:0 22px 54px rgba(0,0,0,.4)}
+.ph img{display:block;width:100%;height:100%;object-fit:cover;aspect-ratio:4/3;transition:transform .9s var(--spring)}
+.ph.wide{grid-column:1/-1}.ph.wide img{aspect-ratio:auto;height:auto}
+.ph.cut{background:radial-gradient(70% 70% at 50% 45%,color-mix(in srgb,var(--tc) 14%,transparent),transparent 72%),rgba(255,255,255,.03)}
+.ph.cut img{object-fit:contain;padding:22px}
+.ph:hover img{transform:scale(1.03)}
+.ph figcaption{position:absolute;left:12px;bottom:12px;z-index:5;max-width:calc(100% - 24px);padding:6px 12px;border-radius:999px;font-size:12.5px;color:#E8EBF2;
+  background:radial-gradient(120% 160% at 28% -20%,rgba(255,255,255,.16),transparent 60%),rgba(10,12,18,.5);
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.5),inset -1px -1px 0 rgba(255,255,255,.14);-webkit-backdrop-filter:blur(10px) saturate(1.7);backdrop-filter:blur(10px) saturate(1.7)}
+.t2 .ph figcaption{-webkit-backdrop-filter:none;backdrop-filter:none;background:rgba(10,12,18,.9)}
+.ph.soon{display:grid;place-items:center;align-content:center;gap:4px;min-height:200px;color:var(--muted);font-size:15px;
+  background:repeating-linear-gradient(135deg,rgba(255,255,255,.03) 0 12px,transparent 12px 24px),rgba(255,255,255,.02)}
+.ph.soon small{font-family:var(--mono);font-size:12px;color:#6b7286}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.stats .st{padding:20px 20px 18px;border-radius:22px;background:var(--lq-fill);box-shadow:var(--lq-depth),0 18px 44px rgba(0,0,0,.35)}
+.stats b{display:block;font-size:clamp(24px,2.6vw,34px);letter-spacing:-.03em;color:var(--tc)}.stats span{color:#AEB4C4;font-size:14px}
+.nexts{display:flex;flex-wrap:wrap;gap:12px;margin-top:8vh}
+.nexts .btn{display:inline-flex;align-items:center;gap:10px}
+@media (max-width:760px){.gal{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.code pre{font-size:11.5px}}
+
+/* ---------- the link: a live diagram of the real system ----------
+   Two glass panels (what is inside the controller and the rover) and the two roads between them. The diagram is laid out
+   in its own units and scaled as one piece to fit, so it keeps its proportions on any screen. */
+.net{position:absolute;z-index:3;left:40%;right:2.5%;top:10%;bottom:9%;opacity:0;visibility:hidden;transition:opacity .7s cubic-bezier(.2,.7,.2,1),visibility 0s .7s;pointer-events:none}
+.p-dl[data-mode=link] .net.show{opacity:1;visibility:visible;transition:opacity .7s cubic-bezier(.2,.7,.2,1)}
+.net-in{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
+.net-in svg{position:absolute;left:0;top:0;overflow:visible}
+.net .ed path{fill:none;stroke:rgba(150,190,230,.16);stroke-width:1.5;stroke-linecap:round;transition:stroke .5s,stroke-width .5s}
+.net .ed path.on{stroke:rgba(120,228,255,.5);stroke-width:2}
+.net .ed path.radio{stroke-dasharray:.01 6.5;stroke-width:2.6}
+.net .ed path.radio.on{stroke-width:3.2}
+.net .ed path.jam{stroke:rgba(255,92,112,.75);stroke-width:3.2;animation:jam .7s linear infinite}
+@keyframes jam{to{stroke-dashoffset:-13.02}}
+.np{position:absolute;border-radius:26px;background:var(--lq-fill);box-shadow:var(--lq-depth);--lq-rim:linear-gradient(140deg,rgba(255,255,255,.6),rgba(255,255,255,.2) 16%,rgba(255,255,255,.05) 34%,rgba(255,255,255,.02) 60%,rgba(255,255,255,.16) 84%,rgba(255,255,255,.4))}
+.np span{position:absolute;left:16px;top:14px;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#7a88a0}
+.nd{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:16px;text-align:center;white-space:nowrap;
+  background:linear-gradient(180deg,#1c212c,#12161e 70%,#151a23);
+  box-shadow:inset 1.2px 1.2px 0 rgba(255,255,255,.3),inset -1px -1px 0 rgba(255,255,255,.07),inset 0 10px 16px -12px rgba(255,255,255,.16),0 10px 24px rgba(0,0,0,.35);
+  transition:box-shadow .5s}
+.nd b{font-size:14px;font-weight:600;letter-spacing:-.01em;color:#EEF3FB;opacity:.42;transition:opacity .5s,color .4s}
+.nd i{font-style:normal;font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;color:#8FA0B8;opacity:.42;transition:opacity .5s,color .4s}
+.nd.big b{font-size:15px}
+.nd.lane{border-radius:999px}.nd.lane b{color:#C6F5FF}
+.net.ov .nd b,.net.ov .nd i,.nd.on b,.nd.on i{opacity:1}
+.nd.on{box-shadow:inset 1.2px 1.2px 0 rgba(255,255,255,.72),inset -1px -1px 0 rgba(255,255,255,.18),inset 0 10px 16px -12px rgba(255,255,255,.38),
+  0 0 0 1px rgba(110,225,255,.38),0 0 28px rgba(77,225,255,.2),0 10px 24px rgba(0,0,0,.35)}
+.nd.bad{box-shadow:inset 1.2px 1.2px 0 rgba(255,255,255,.6),inset 0 0 0 1px rgba(255,92,112,.6),0 0 30px rgba(255,70,90,.35),0 10px 24px rgba(0,0,0,.35)}
+.nd.bad b{color:#FF9AA8;opacity:1}
+.nd i.hot{color:var(--hc)}
+.net-key{position:absolute;transform:translate(-50%,-50%);display:flex;gap:14px;font-family:var(--mono);font-size:11px;color:#8FA0B8;white-space:nowrap}
+.net-key i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}
+.net.tall .nd{border-radius:14px;gap:2px}.net.tall .nd b{font-size:12.5px}.net.tall .nd i{font-size:9.5px}.net.tall .nd.big b{font-size:13.5px}
+.net.tall .np{border-radius:22px}.net.tall .np span{left:14px;top:11px;font-size:9.5px}.net.tall .net-key{font-size:10px;gap:12px}
+@media (max-width:760px),(max-aspect-ratio:9/10){.net{left:12px;right:12px;top:calc(66px + env(safe-area-inset-top,0px));bottom:41%}}
+
+/* back button: where it goes, shown on hover */
+#back .tip{position:absolute;right:calc(100% + 10px);top:50%;transform:translate(8px,-50%);white-space:nowrap;pointer-events:none;opacity:0;
+  padding:7px 12px;border-radius:999px;font-size:13px;font-weight:600;background:rgba(14,16,24,.86);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);transition:opacity .25s,transform .45s var(--spring)}
+#back:hover .tip,#back:focus-visible .tip{opacity:1;transform:translate(0,-50%)}
+@media (pointer:coarse){#back .tip{display:none}}
+
+/* ---------- back button: a drop of the island ---------- */
+#back{position:fixed;z-index:46;left:0;top:calc(14px + env(safe-area-inset-top,0px));width:46px;height:46px;border-radius:23px;border:0;padding:0;cursor:pointer;display:grid;place-items:center;
+  background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(255,255,255,.04) 55%,rgba(255,255,255,.08));
+  -webkit-backdrop-filter:blur(14px) saturate(1.7);backdrop-filter:blur(14px) saturate(1.7);
+  box-shadow:inset 1.4px 1.4px 0 rgba(255,255,255,.78),inset -1px -1px 0 rgba(255,255,255,.32),inset 0 0 0 1px rgba(255,255,255,.07),
+    inset 0 12px 20px -14px rgba(255,255,255,.5),inset 0 -12px 20px -16px rgba(255,255,255,.22),0 20px 50px rgba(0,0,0,.42);
+  transition:scale .45s var(--spring),opacity .25s}
+#back svg{width:18px;height:18px;transition:transform .45s var(--spring)}
+#back:hover{scale:1.08}#back:hover svg{transform:translateX(-2px)}
+#back:active{scale:.94}
+.t2 #back{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(18,20,28,.86)}
+#drop{position:fixed;z-index:45;left:0;top:0;pointer-events:none;display:none;
+  -webkit-backdrop-filter:blur(14px) saturate(1.7);backdrop-filter:blur(14px) saturate(1.7)}
+#drop svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#drop .glow{filter:blur(4px)}
+/* static island glass (refraction) is a light blur, so the drop uses the same light blur to match it */
+#drop.lite{-webkit-backdrop-filter:blur(1.5px) saturate(1.8) brightness(1.06);backdrop-filter:blur(1.5px) saturate(1.8) brightness(1.06)}
+.t2 #drop{-webkit-backdrop-filter:none;backdrop-filter:none}
+/* while a drop is leaving or joining, the island hands its surface to the drop layer, so both read as one liquid */
+#island.melt{background:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;box-shadow:none!important}
+#island.melt::after{opacity:0}
+
+.toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));z-index:60;transform:translate(-50%,14px);opacity:0;padding:11px 18px;border-radius:999px;font-size:14px;
+  background:radial-gradient(120% 160% at 28% -20%,rgba(255,255,255,.16),transparent 60%),rgba(20,22,30,.62);
+  box-shadow:inset 1.2px 1.2px 0 rgba(255,255,255,.6),inset -1px -1px 0 rgba(255,255,255,.18),inset 0 10px 16px -12px rgba(255,255,255,.3),0 16px 40px rgba(0,0,0,.5);
+  -webkit-backdrop-filter:blur(12px) saturate(1.7);backdrop-filter:blur(12px) saturate(1.7);transition:opacity .3s,transform .5s var(--spring);pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}#stage,#island{transition-duration:.01s!important}}
+</style>
+
+<div id="stage"><div id="pages">
+  <section class="page p-home active" id="pg-home" aria-label="Home"><div class="pw"><div class="pbg"></div>
+  <div class="hbg" aria-hidden="true"><div class="hb-field"><i></i><i></i><i></i></div><i class="hb-grain"></i></div><i class="hlight" aria-hidden="true"></i><div class="wash"></div><i class="rail" aria-hidden="true"></i>
+  <div class="pc home">
+    <h1 class="ttl r"><span class="tt">Radu Matei</span><span class="tb" aria-hidden="true">Radu Matei</span></h1>
+
+    <div class="bento">
+      <div class="tile lq bd t-intro r">
+        <p class="role">Telecom engineer, into cybersecurity.</p>
+        <p class="proof">I built a tracked robot for my thesis and got a 9.00. Last summer I tested power equipment at Siemens Energy. Now I'm doing a master's in Brașov.</p>
+        <div class="row"><button class="btn p" data-go="projects">See projects</button><button class="btn s" data-go="contact">Get in touch</button></div>
       </div>
-    </nav>
-  </header>
 
-  <main></main>
+      <button class="tile lq t-photo r" aria-label="Open photo of Radu"><i class="ch c-r"></i><i class="ch c-g"></i><i class="ch c-b"></i></button>
 
-  <script src="./assets/js/waves.js"></script>
-  <script src="./assets/js/nav.js"></script>
-  <script src="./assets/js/wip.js"></script><!-- NEW -->
-</body>
-</html>
+      <div class="tile lq bd t-term r" aria-label="Terminal">
+        <div class="term-bar"><i></i><i></i><i></i><span>radu@site</span></div>
+        <div class="term-out" aria-live="polite"></div>
+        <label class="term-in"><span>$</span><input type="text" spellcheck="false" autocomplete="off" aria-label="Type a command, for example help"></label>
+      </div>
+
+      <div class="tile lq bd t-scope r" aria-label="Signal you can play with">
+        <canvas class="scope"></canvas>
+        <p class="hint">Move over the signal. Left and right change the frequency, up and down the amplitude.</p>
+        <p class="sread"><b class="f">2.0 Hz</b><b class="a">1.0 V</b></p>
+      </div>
+
+      <div class="tile lq bd t-clock r">
+        <p class="clk"><b class="hh-m">--:--</b><span class="ss">--</span></p>
+        <p class="clk-l">in Brașov, where I live</p>
+      </div>
+
+      <button class="tile lq bd t-rover r" data-go="projects" data-from="self">
+        <svg class="rv-mini" viewBox="0 0 220 90" aria-hidden="true">
+          <rect x="70" y="2" width="8" height="26" rx="2" class="mast"/><rect x="58" y="0" width="34" height="14" rx="4" class="cam"/>
+          <path d="M30 28h160l10 20-10 18H30L20 48z" class="hull"/>
+          <rect x="6" y="56" width="208" height="30" rx="15" class="track"/>
+          <g class="wheels"><circle cx="24" cy="71" r="10"/><circle cx="78" cy="71" r="8"/><circle cx="142" cy="71" r="8"/><circle cx="196" cy="71" r="10"/></g>
+        </svg>
+        <span class="tl"><b>DataLink Rover</b><span>My thesis robot. Open the project</span></span>
+      </button>
+
+      <div class="tile lq bd t-trip r" tabindex="0" role="button" style="--cc:#FFE14D">
+        <div class="breaker"><svg viewBox="0 0 80 40" aria-hidden="true"><circle cx="14" cy="20" r="4"/><circle cx="66" cy="20" r="4"/><line class="lever" x1="18" y1="20" x2="62" y2="20"/></svg><span class="kv">6.0 kV</span></div>
+        <b>Siemens Energy</b><span class="sub">Summer 2025. Click the breaker.</span>
+        <template><h3>Siemens Energy, intern</h3><p>Tested protection relays and 6 kV and 0.4 kV switchgear.</p><p>Did some PLC and HMI programming and helped restart a SCADA server.</p><button class="btn p" data-go="record">See my record</button></template>
+      </div>
+
+      <div class="tile lq bd t-sec r" tabindex="0" role="button" style="--cc:#5CF59A">
+        <span class="scr">7f3a 9c01 e2b4</span>
+        <b>Cybersecurity</b><span class="sub">GoIT course done, CCNA 1 in progress</span>
+        <template><h3>Cybersecurity</h3><p>Courses: the GoIT cybersecurity course, and Cisco CCNA 1, in progress.</p><p>Lab: VMware with Parrot OS, Metasploitable 2 and GNS3.</p><button class="btn p" data-go="projects">See my projects</button></template>
+      </div>
+    </div>
+
+    <div class="hs rover-sec" aria-label="My thesis robot">
+      <div class="rv-stage">
+        <h2 class="hh">My thesis robot</h2>
+        <div class="rv">
+          <div class="rp rp-cam"><svg viewBox="0 0 120 70"><rect x="52" y="20" width="10" height="50" rx="2"/><rect x="34" y="2" width="46" height="24" rx="6"/><circle cx="68" cy="14" r="7" class="lens"/></svg><span class="lb">Camera</span></div>
+          <div class="rp rp-el"><svg viewBox="0 0 300 40"><rect x="20" y="6" width="260" height="28" rx="4" class="pcb"/><rect x="40" y="12" width="40" height="16" rx="2"/><rect x="100" y="12" width="24" height="16" rx="2"/><rect x="140" y="14" width="60" height="12" rx="2"/><rect x="220" y="12" width="40" height="16" rx="2"/></svg><span class="lb">Electronics</span></div>
+          <div class="rp rp-body"><svg viewBox="0 0 320 70"><path d="M20 8h280l14 30-14 30H20L6 38z"/></svg><span class="lb">Chassis</span></div>
+          <div class="rp rp-trk"><svg viewBox="0 0 360 80"><rect x="4" y="4" width="352" height="72" rx="36"/><circle cx="40" cy="40" r="24"/><circle cx="130" cy="40" r="18"/><circle cx="230" cy="40" r="18"/><circle cx="320" cy="40" r="24"/></svg><span class="lb">Tracks</span></div>
+          <div class="hud lq bd"><span><i></i>Camera</span><span><i></i>Telemetry</span></div>
+        </div>
+        <button class="btn s rv-cta" data-go="projects" data-from="self">See the whole build</button>
+      </div>
+    </div>
+
+    <div class="hs next">
+      <h2 class="hh rise">Where to next</h2>
+      <nav class="bars" aria-label="Pages">
+        <button class="bar main" data-go="projects" data-from="self" style="--bc:#FF9F43"><b>Projects</b><span>The robot, a password app and more</span></button>
+        <button class="bar" data-go="record" data-from="self" style="--bc:#FFE14D"><b>Record</b><span>School, work and courses</span></button>
+        <button class="bar" data-go="about" data-from="self" style="--bc:#5CF59A"><b>About</b><span>Tennis, F1 and games</span></button>
+        <button class="bar" data-go="contact" data-from="self" style="--bc:#4DC8FF"><b>Contact</b><span>Email, LinkedIn, GitHub</span></button>
+      </nav>
+    </div>
+  </div></div></section>
+  <section class="page p-projects" id="pg-projects" aria-label="Projects"><div class="pw"><div class="pbg"></div><div class="wash"></div><div class="pc">
+    <h1 class="ttl r"><span class="tt">Projects</span><span class="tb" aria-hidden="true">Projects</span></h1><p class="lead r">Things I've built, biggest first.</p>
+    <div class="plist">
+      <div class="pjw big"><button class="pj rover lq bd" id="pj-rover" aria-label="Open the DataLink Rover project">
+        <i class="sheen" aria-hidden="true"></i>
+        <div class="pj-in">
+          <span class="no">01 · Bachelor's thesis · 2026</span>
+          <h2 class="pj-t">DataLink<br>Rover</h2>
+          <p class="d">A tracked robot I designed and built on my own, from the electronics to the control software. It streams live video and data back to the driver.</p>
+          <div class="tags"><span>Graded 9.00</span><span>Live camera</span><span>Telemetry</span><span>Python</span></div>
+          <span class="go-pill">Open project<i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></i></span>
+        </div>
+        <div class="rvc-stage" aria-hidden="true">
+          <div class="rv-slot" id="rv-slot-card"></div>
+          <svg class="rv-fb" viewBox="0 0 220 90"><rect x="70" y="2" width="8" height="26" rx="2" fill="#2a2e3c"/><rect x="58" y="0" width="34" height="14" rx="4" fill="#FF9F43"/><path d="M30 28h160l10 20-10 18H30L20 48z" fill="#30354a" stroke="#b8bfd4" stroke-width="1.5"/><rect x="6" y="56" width="208" height="30" rx="15" fill="#15171f" stroke="#6b7186" stroke-width="3"/></svg>
+          <span class="rv-hint"><i></i>3D preview</span>
+        </div>
+      </button></div>
+
+      <div class="pjw"><article class="pj lq bd">
+        <i class="sheen" aria-hidden="true"></i>
+        <div class="pj-in">
+          <div class="pv pv-pass" aria-hidden="true"><div class="fld"><b>••••••••••</b><em>R4du!tennis-2026</em></div><div class="bar2"><i></i></div><div class="st"><span>Strength</span><b>Weak · leaked</b></div></div>
+          <span class="no">02 · Desktop app</span>
+          <h2>Password Helper</h2>
+          <p class="d">Tells you how strong a password is and checks if it showed up in a known data leak. Comes with a small vault server.</p>
+          <div class="tags"><span>Electron</span><span>Node.js</span><span>MongoDB</span><span>Docker</span></div>
+        </div>
+      </article></div>
+
+      <div class="pjw"><article class="pj lq bd">
+        <i class="sheen" aria-hidden="true"></i>
+        <div class="pj-in">
+          <div class="pv pv-trip" aria-hidden="true"><svg viewBox="0 0 340 120" preserveAspectRatio="xMidYMid meet"><path class="arc" d="M40 92 Q 170 -10 300 70"/><circle class="city" cx="40" cy="92" r="5"/><circle class="city" cx="300" cy="70" r="5"/><text x="26" y="112">OTP</text><text x="284" y="92">???</text>
+            <g class="plane"><path d="M-8 0 L8 0 M2 -6 L8 0 L2 6 M-6 -4 L-3 0 L-6 4" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></svg></div>
+          <span class="no">03 · Web app</span>
+          <h2>OPS: City Break</h2>
+          <p class="d">My friends and I used it to pick where to go on a trip. Four voting rounds, live flight prices, runs on my own server.</p>
+          <div class="tags"><span>Node.js</span><span>SQLite</span><span>Docker</span></div>
+        </div>
+      </article></div>
+
+      <div class="pjw sm"><article class="pj lq bd">
+        <i class="sheen" aria-hidden="true"></i>
+        <div class="pj-in">
+          <div class="pv pv-lab" aria-hidden="true"><svg viewBox="0 0 390 120" preserveAspectRatio="xMidYMid meet"><line x1="60" y1="60" x2="160" y2="30"/><line x1="160" y1="30" x2="260" y2="62"/><line x1="260" y1="62" x2="330" y2="34"/><line x1="160" y1="30" x2="200" y2="96"/>
+            <circle cx="60" cy="60" r="10"/><circle cx="160" cy="30" r="10"/><circle cx="260" cy="62" r="10"/><circle cx="200" cy="96" r="8"/><circle class="hit" cx="330" cy="34" r="10"/><circle class="pk" r="4"/></svg></div>
+          <span class="no">04 · Lab</span>
+          <h2>Home Lab</h2>
+          <p class="d">Virtual machines where I practice attacking and defending: Parrot OS, Metasploitable 2 and GNS3.</p>
+          <div class="tags"><span>VMware</span><span>Parrot OS</span><span>GNS3</span></div>
+        </div>
+      </article></div>
+
+      <div class="pjw sm"><article class="pj lq bd">
+        <i class="sheen" aria-hidden="true"></i><span class="soon">in progress</span>
+        <div class="pj-in">
+          <div class="pv pv-whist" aria-hidden="true"><i>A</i><i class="r">K</i><i>Q</i><i class="r">J</i></div>
+          <span class="no">05 · Game</span>
+          <h2>Romanian Whist</h2>
+          <p class="d">The card game my friends and I play, with our own house rules, so we can play it online.</p>
+          <div class="tags"><span>Python</span><span>JavaScript</span><span>Electron</span></div>
+        </div>
+      </article></div>
+    </div>
+  </div></div></section>
+  <section class="page p-dl" id="pg-dl" aria-label="DataLink Rover" data-mode="select" data-bg="select"><div class="pw">
+    <div class="dl-stage" id="dl-stage">
+      <div class="dl-bg" aria-hidden="true"><i class="b-sel"></i><i class="b-rover"></i><i class="b-remote"></i><i class="b-link"></i></div>
+      <div class="dl-ttl" aria-hidden="true"><span data-for="rover">Rover</span><span data-for="remote">Controller</span><span data-for="link">Link</span></div>
+      <div class="dl-slot" id="dl-slot"></div>
+      <div class="net" id="dl-net" aria-hidden="true"><div class="net-in"><div class="np lq"><span>Controller</span></div><div class="np lq"><span>Rover</span></div>
+        <svg><defs><radialGradient id="pkC"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#4DE1FF"/><stop offset="1" stop-color="#4DE1FF" stop-opacity="0"/></radialGradient>
+          <radialGradient id="pkA"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#FFB347"/><stop offset="1" stop-color="#FFB347" stop-opacity="0"/></radialGradient>
+          <radialGradient id="pkV"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#A98BFF"/><stop offset="1" stop-color="#A98BFF" stop-opacity="0"/></radialGradient></defs><g class="ed"></g><g class="pu"></g></svg>
+        <div class="nn"></div>
+        <div class="net-key"><span><i style="background:#4DE1FF"></i>command</span><span><i style="background:#FFB347"></i>telemetry</span><span><i style="background:#A98BFF"></i>video</span></div></div></div>
+      <div class="dl-tags" id="dl-tags" aria-hidden="true"></div>
+      <div class="dl-sel" id="dl-sel">
+        <header class="sel-hd"><p class="sel-k">Bachelor's thesis · 2026 · graded 9.00</p><h1 class="sel-t">DataLink<br>Rover</h1><p class="sel-s">Pick a part to explore.</p></header>
+        <button class="pick" data-pick="remote" style="--c:#6E9BFF"><span class="pk-l"><span class="pk-n">Controller</span><span class="pk-bar"></span><span class="pk-s">Pi 5, a 7-inch screen and two joysticks</span><span class="pk-go">Explore</span></span></button>
+        <button class="pick" data-pick="link" style="--c:#4DE1FF"><span class="pk-l"><span class="pk-n">Link</span><span class="pk-bar"></span><span class="pk-s">How a command reaches the rover, twice</span><span class="pk-go">Explore</span></span></button>
+        <button class="pick" data-pick="rover" style="--c:#FF9F43"><span class="pk-l"><span class="pk-n">Rover</span><span class="pk-bar"></span><span class="pk-s">T101 tracks, two cameras, a fibre backup</span><span class="pk-go">Explore</span></span></button>
+        <p class="sel-help">← → to choose · Enter to open</p>
+      </div>
+      <div class="dl-hud" id="dl-hud" aria-hidden="true"><span class="hn">01 / 08</span><span class="hb"><i></i></span><span class="ht"></span></div>
+      <p class="dl-cue">Scroll</p>
+    </div>
+    <div class="dl-story" data-for="rover">
+      <section class="seg" data-type="hero" data-len="1.1"></section>
+      <section class="seg mid" data-type="explode" data-len="1.4"><div class="sc lq bd"><h3>Taken apart</h3><p>Eight parts, each built to its real size from my photos and the thesis. Keep scrolling to go through them.</p></div></section>
+      <section class="seg" data-type="part" data-k="0" data-len="1.25"><article class="sc lq bd"><span class="n">01 / 08</span><h3>Tracks and motors</h3><p>A T101 aluminium tank kit with ABS plastic tracks. Each track has its own 12&nbsp;V gear motor, fed straight from the 7.4&nbsp;V pack.</p><p>No steering: one track runs faster than the other, so the rover turns on the spot.</p><p class="kv"><span>left = y + x</span><span>right = y − x</span></p></article></section>
+      <section class="seg" data-type="part" data-k="1" data-len="1.25"><article class="sc lq bd"><span class="n">02 / 08</span><h3>Frame and plate</h3><p>The T101 is a bent aluminium frame that carries the motors and the wheels.</p><p>Everything else sits on my 3D printed plate. Its tabs at the front and back hold the distance sensors.</p></article></section>
+      <section class="seg" data-type="part" data-k="2" data-len="1.25"><article class="sc lq bd"><span class="n">03 / 08</span><h3>Raspberry Pi 5, 8&nbsp;GB</h3><p>The rover's computer. It runs two services that start on boot: <code>rover.py</code> takes the commands, reads the sensors and drives, and <code>camera_stream.py</code> streams both cameras.</p><p>The extra memory is for the self-docking model I want to run on it next.</p></article></section>
+      <section class="seg" data-type="part" data-k="3" data-len="1.25"><article class="sc lq bd"><span class="n">04 / 08</span><h3>Arduino Nano and DRV8833</h3><p>Linux can't promise timing, so a Nano does the real-time part. The Pi sends it short text lines over USB at 115200 baud.</p><p class="kv"><span>M 182 -64</span><span>S 90</span></p><p>The DRV8833 H-bridge switches battery power to the motors. If the lines stop for half a second, the Nano stops the motors on its own.</p></article></section>
+      <section class="seg" data-type="part" data-k="4" data-len="1.25"><article class="sc lq bd"><span class="n">05 / 08</span><h3>Distance sensors</h3><p>Five VL53L0X laser time-of-flight sensors, three at the front and two at the back. They all have the same I²C address, so a TCA9548A switches them on one at a time.</p><p>Under 400&nbsp;mm the rover slows down, and at 120&nbsp;mm it stops. Turning stays free, so it can always get out.</p></article></section>
+      <section class="seg" data-type="part" data-k="5" data-len="1.25"><article class="sc lq bd"><span class="n">06 / 08</span><h3>Two cameras</h3><p>Two Waveshare IMX219 cameras, 8&nbsp;MP with a 120° lens, each streaming 1920&nbsp;×&nbsp;1080 at 30&nbsp;fps.</p><p>The front one is the driving view. The other sits on a mast and turns on an MG90S servo that the right stick controls. The riser and the camera mount are parts I designed.</p></article></section>
+      <section class="seg" data-type="part" data-k="6" data-len="1.25"><article class="sc lq bd"><span class="n">07 / 08</span><h3>Power</h3><p>Four Samsung 21700 cells in 2S2P: 7.2&nbsp;V, 10&nbsp;Ah, about 72&nbsp;Wh, roughly four hours of driving.</p><p>A 2S BMS protects them and a 6&nbsp;A switch cuts everything. An XL4015 makes 5.1&nbsp;V for the Pi, while the motors run straight from the pack. An INA219 measures the battery.</p></article></section>
+      <section class="seg" data-type="part" data-k="7" data-len="1.25"><article class="sc lq bd"><span class="n">08 / 08</span><h3>Fibre link</h3><p>The backup path. A media converter turns the Pi's Ethernet into light on a single strand of single-mode fibre: 1310&nbsp;nm one way, 1550&nbsp;nm the other, up to 3&nbsp;km.</p><p>Light in glass can't be jammed by radio.</p></article></section>
+      <section class="seg" data-type="rebuild" data-len="1.1"></section>
+      <section class="seg mid" data-type="action" data-len="1.9"><div class="sc lq bd"><h3>Ready to go</h3><p>On power-up the camera runs the servo check from <code>rover.py</code>: full left, full right, centre. Then it drives off.</p></div></section>
+      <section class="after">
+        <h2>The code</h2>
+        <p class="al">Twenty times a second, <code>rover.py</code> takes the newest command, limits it near obstacles and turns it into two track speeds.</p>
+        <div class="code lq"><div class="cb"><i></i><i></i><i></i><span>rover.py · control loop</span></div><pre><span class="k">def</span> <span class="f">axis_limit</span>(dist_mm, stop=<span class="n">120</span>, slow=<span class="n">400</span>):
+    <span class="c">"""1.0 = free, 0.0 = blocked, linear in between."""</span>
+    <span class="k">if</span> dist_mm <span class="k">is</span> None:  <span class="k">return</span> <span class="n">1.0</span>     <span class="c"># a dead sensor never blocks driving</span>
+    <span class="k">if</span> dist_mm &lt;= stop:  <span class="k">return</span> <span class="n">0.0</span>
+    <span class="k">if</span> dist_mm &gt;= slow:  <span class="k">return</span> <span class="n">1.0</span>
+    <span class="k">return</span> (dist_mm - stop) / <span class="f">float</span>(slow - stop)
+
+<span class="c"># collision limit on the drive axis only; turning stays free</span>
+<span class="k">if</span> y &gt; <span class="n">0</span>:   y *= <span class="f">axis_limit</span>(<span class="f">min_valid</span>([tof[i] <span class="k">for</span> i <span class="k">in</span> FRONT_IDX]))
+<span class="k">elif</span> y &lt; <span class="n">0</span>: y *= <span class="f">axis_limit</span>(<span class="f">min_valid</span>([tof[i] <span class="k">for</span> i <span class="k">in</span> REAR_IDX]))
+l = <span class="f">max</span>(-<span class="n">1.0</span>, <span class="f">min</span>(<span class="n">1.0</span>, y + x))   <span class="c"># tank mixing</span>
+r = <span class="f">max</span>(-<span class="n">1.0</span>, <span class="f">min</span>(<span class="n">1.0</span>, y - x))
+nano.<span class="f">send</span>(<span class="s">f'M {int(l * 255 * TRIM_L)} {int(r * 255 * TRIM_R)}'</span>)</pre></div>
+        <p class="al">The Nano only has to understand two kinds of line.</p>
+        <div class="code lq"><div class="cb"><i></i><i></i><i></i><span>rover.ino · Arduino Nano</span></div><pre><span class="k">void</span> <span class="f">handleLine</span>(<span class="k">char</span> *line) {
+  <span class="k">if</span> (line[<span class="n">0</span>] == <span class="s">'M'</span>) {                <span class="c">// M &lt;left&gt; &lt;right&gt;, -255..255</span>
+    <span class="k">int</span> l = <span class="n">0</span>, r = <span class="n">0</span>;
+    <span class="k">if</span> (<span class="f">sscanf</span>(line + <span class="n">1</span>, <span class="s">"%d %d"</span>, &amp;l, &amp;r) == <span class="n">2</span>) {
+      <span class="f">setMotor</span>(PIN_L_IN1, PIN_L_IN2, l);
+      <span class="f">setMotor</span>(PIN_R_IN1, PIN_R_IN2, r);
+    }
+  } <span class="k">else if</span> (line[<span class="n">0</span>] == <span class="s">'S'</span>) {         <span class="c">// S &lt;angle&gt;</span>
+    <span class="k">int</span> a = <span class="n">0</span>;
+    <span class="k">if</span> (<span class="f">sscanf</span>(line + <span class="n">1</span>, <span class="s">"%d"</span>, &amp;a) == <span class="n">1</span>) steer.<span class="f">write</span>(a);
+  }
+}</pre></div>
+        <h2>Photos</h2>
+        <div class="gal">
+          <figure class="ph lq"><img src="ph-rover-side.webp" alt="The rover's printed plate on the T101 chassis with the Pi 5, the Nano, the buck converter, the servo mast and the fibre converter" loading="lazy" width="854" height="698"><figcaption>The electronics plate on the T101, from the front.</figcaption></figure>
+          <figure class="ph lq"><img src="ph-rover-top.webp" alt="The rover's plate seen from above" loading="lazy" width="638" height="580"><figcaption>From above: Pi 5, Nano, XL4015, TCA9548A and the fibre converter.</figcaption></figure>
+          <div class="ph soon"><span>Drive test video</span><small>coming soon</small></div>
+        </div>
+        <div class="nexts"><button class="btn p" data-dl="remote">See the controller</button><button class="btn s" data-dl="link">See the link</button><button class="btn s" data-dl="select">All parts</button></div>
+      </section>
+    </div>
+    <div class="dl-story" data-for="remote">
+      <section class="seg" data-type="hero" data-len="1.1"></section>
+      <section class="seg mid" data-type="explode" data-len="1.4"><div class="sc lq bd"><h3>Straight from the CAD file</h3><p>This is the real model, every part where it sits. Keep scrolling to go through them.</p></div></section>
+      <section class="seg" data-type="part" data-k="0" data-len="1.25"><article class="sc lq bd"><span class="n">01 / 08</span><h3>Housing</h3><p>The frame and the two grips, 3D printed in black PLA. I worked out where everything goes; the CAD modelling was done together with a friend.</p></article></section>
+      <section class="seg" data-type="part" data-k="1" data-len="1.25"><article class="sc lq bd"><span class="n">02 / 08</span><h3>Screen</h3><p>A 7-inch 800&nbsp;×&nbsp;480 capacitive touch screen: HDMI for the picture, USB for touch.</p><p>It runs my control interface, built in Electron: both cameras, both batteries and a map of nearby obstacles.</p></article></section>
+      <section class="seg" data-type="part" data-k="2" data-len="1.25"><article class="sc lq bd"><span class="n">03 / 08</span><h3>Joysticks</h3><p>The left stick drives, the right one turns the rover's camera. The Pi has no analog inputs, so an ADS1015 reads all four axes over I²C.</p><p>A six-step calibration measures each stick's real forward and turn directions, so a crooked stick still drives straight.</p></article></section>
+      <section class="seg" data-type="part" data-k="3" data-len="1.25"><article class="sc lq bd"><span class="n">04 / 08</span><h3>Power switch</h3><p>The toggle on the top edge turns the controller on and off.</p></article></section>
+      <section class="seg" data-type="part" data-k="4" data-len="1.25"><article class="sc lq bd"><span class="n">05 / 08</span><h3>Raspberry Pi 5, 4&nbsp;GB</h3><p>The controller is the Wi-Fi access point the rover joins. Its Pi reads the sticks, sends every command 20 times a second over both links, and shows the two video streams.</p><p>It sits upside down under the screen, cooled by a 30&nbsp;mm fan in the back cover.</p></article></section>
+      <section class="seg" data-type="part" data-k="5" data-len="1.25"><article class="sc lq bd"><span class="n">06 / 08</span><h3>Power mounts</h3><p>These printed mounts hold the XL4015 buck converters: 5.1&nbsp;V for the Pi, and 3.3&nbsp;V for the fibre converter. An INA219 measures the battery for the on-screen gauge.</p></article></section>
+      <section class="seg" data-type="part" data-k="6" data-len="1.25"><article class="sc lq bd"><span class="n">07 / 08</span><h3>Batteries</h3><p>Four Samsung INR21700-50S cells, two in each grip, in 2S2P: 7.2&nbsp;V and 10&nbsp;Ah, about 72&nbsp;Wh. That's roughly four hours.</p></article></section>
+      <section class="seg" data-type="part" data-k="7" data-len="1.25"><article class="sc lq bd"><span class="n">08 / 08</span><h3>Covers</h3><p>The middle cover closes the electronics and carries the fan. The bottom cover closes everything up.</p></article></section>
+      <section class="seg" data-type="rebuild" data-len="1.1"></section>
+      <section class="seg mid" data-type="action" data-len="1.9"><div class="sc lq bd"><h3>Switched on</h3><p>The screen wakes up with my interface: the mast camera full screen, the front camera in the corner, both batteries and the obstacle map.</p></div></section>
+      <section class="after">
+        <h2>The code</h2>
+        <p class="al">The calibration in <code>monitor.py</code>: each reading is projected onto the stick's own measured directions.</p>
+        <div class="code lq"><div class="cb"><i></i><i></i><i></i><span>monitor.py · joystick calibration</span></div><pre><span class="k">def</span> <span class="f">calibrate_xy</span>(ax, ay, which):
+    c = joycal[which]
+    dx, dy = ax - c[<span class="s">'cx'</span>], ay - c[<span class="s">'cy'</span>]
+    fp = dx * c[<span class="s">'fwd_unit'</span>][<span class="n">0</span>]  + dy * c[<span class="s">'fwd_unit'</span>][<span class="n">1</span>]    <span class="c"># onto "forward"</span>
+    tp = dx * c[<span class="s">'turn_unit'</span>][<span class="n">0</span>] + dy * c[<span class="s">'turn_unit'</span>][<span class="n">1</span>]   <span class="c"># onto "turn"</span>
+    y = <span class="f">max</span>(-<span class="n">1.0</span>, <span class="f">min</span>(<span class="n">1.0</span>, fp / c[<span class="s">'fwd_scale'</span>]))
+    x = <span class="f">max</span>(-<span class="n">1.0</span>, <span class="f">min</span>(<span class="n">1.0</span>, tp / c[<span class="s">'turn_scale'</span>]))
+    <span class="k">return</span> <span class="f">_deadzone</span>(x, c[<span class="s">'deadzone'</span>]), <span class="f">_deadzone</span>(y, c[<span class="s">'deadzone'</span>])</pre></div>
+        <h2>Photos</h2>
+        <div class="gal">
+          <figure class="ph wide cut"><img src="ph-remote-front.webp" alt="The finished controller from the front: screen, two joysticks and the green cells in the grips" loading="lazy" width="1100" height="752"><figcaption>Finished, from the front.</figcaption></figure>
+          <figure class="ph cut lq"><img src="ph-remote-back.webp" alt="The controller from the back: the screen's board, the cover with the fan and the HDMI cable" loading="lazy" width="1100" height="873"><figcaption>The back, with the cooling fan.</figcaption></figure>
+          <figure class="ph lq"><img src="ph-remote-hand.webp" alt="The controller held in one hand" loading="lazy" width="900" height="710"><figcaption>In the hand.</figcaption></figure>
+          <figure class="ph lq"><img src="ph-remote-inside.webp" alt="The controller's Pi 5 and wiring inside the printed case" loading="lazy" width="900" height="880"><figcaption>Inside, during assembly.</figcaption></figure>
+          <figure class="ph wide lq"><img src="ph-hud.webp" alt="The control interface: live video, picture in picture, batteries and proximity map" loading="lazy" width="1400" height="729"><figcaption>The interface, before a camera is connected.</figcaption></figure>
+          <figure class="ph wide lq"><img src="ph-monitor.webp" alt="The system monitor window showing the controller, the rover and the dock" loading="lazy" width="1400" height="722"><figcaption>The system monitor for all three Pis.</figcaption></figure>
+        </div>
+        <div class="nexts"><button class="btn p" data-dl="rover">See the rover</button><button class="btn s" data-dl="link">See the link</button><button class="btn s" data-dl="select">All parts</button></div>
+      </section>
+    </div>
+    <div class="dl-story" data-for="link">
+      <section class="seg" data-type="hero" data-len="1.1"></section>
+      <section class="seg" data-type="step" data-k="0" data-len="1.2"><article class="sc lq bd"><span class="n">01 / 07</span><h3>Your thumbs</h3><p>The left stick drives and the right one turns the camera. An ADS1015 converts their four analog axes into numbers the Pi can read.</p></article></section>
+      <section class="seg" data-type="step" data-k="1" data-len="1.2"><article class="sc lq bd"><span class="n">02 / 07</span><h3>Calibrated, then packed</h3><p>The Pi corrects each reading with the stick's calibration and packs both sticks into a tiny message with a timestamp.</p><p class="pk"><code>{"m":"dlr1","t":1749…,"j1":{"x":0.42,"y":0.80},"j2":{"x":-0.1,"y":0}}</code></p></article></section>
+      <section class="seg" data-type="step" data-k="2" data-len="1.3"><article class="sc lq bd"><span class="n">03 / 07</span><h3>Two roads at once</h3><p>Every 50&nbsp;ms the same packet goes out on both links: Wi-Fi on 2.4&nbsp;GHz, where the controller is the access point, and a single fibre through the two media converters.</p><p>It's UDP: a late command isn't worth resending, the next one is already on its way.</p></article></section>
+      <section class="seg" data-type="step" data-k="3" data-len="1.2"><article class="sc lq bd"><span class="n">04 / 07</span><h3>First copy wins</h3><p>Both copies reach the rover. It keeps whichever arrives first and drops the twin with the same timestamp.</p></article></section>
+      <section class="seg" data-type="step" data-k="4" data-len="1.3"><article class="sc lq bd"><span class="n">05 / 07</span><h3>Safety, then the motors</h3><p>The distance sensors cap the speed near obstacles, tank mixing makes two track speeds, and the Nano drives the motors and the camera servo.</p><p>No command for 0.4&nbsp;s and the motors stop.</p></article></section>
+      <section class="seg" data-type="step" data-k="5" data-len="1.3"><article class="sc lq bd"><span class="n">06 / 07</span><h3>And back</h3><p>Ten times a second the rover sends its distances, battery, servo angle and failsafe state, also on both links. Both cameras stream video to the screen.</p><p>The controller always shows the freshest data.</p></article></section>
+      <section class="seg" data-type="step" data-k="6" data-len="1.5"><article class="sc lq bd"><span class="n">07 / 07</span><h3>Jam the radio</h3><p>For the thesis demo I jammed the Wi-Fi band. The radio packets stopped, and after 1.5&nbsp;s of silence the controller switched to the fibre on its own.</p><p>The data kept coming the whole time.</p></article></section>
+      <section class="seg mid" data-type="finale" data-len="1.6"><div class="sc lq bd"><h3>Controller to rover</h3><p>That's the whole trip, 20 times a second while you drive.</p><p class="kv"><span>20 Hz commands</span><span>10 Hz telemetry</span><span>1.5 s failover</span></p></div></section>
+      <section class="after">
+        <h2>The code</h2>
+        <p class="al">Three small pieces make the link redundant. The controller sends every command on both links.</p>
+        <div class="code lq"><div class="cb"><i></i><i></i><i></i><span>monitor.py · controller</span></div><pre>pkt = json.<span class="f">dumps</span>({<span class="s">'m'</span>: <span class="s">'dlr1'</span>, <span class="s">'t'</span>: <span class="f">int</span>(time.<span class="f">time</span>() * <span class="n">1000</span>),
+                  <span class="s">'j1'</span>: {<span class="s">'x'</span>: j1[<span class="s">'x'</span>], <span class="s">'y'</span>: j1[<span class="s">'y'</span>], <span class="s">'ok'</span>: j1[<span class="s">'available'</span>]},
+                  <span class="s">'j2'</span>: {<span class="s">'x'</span>: j2[<span class="s">'x'</span>], <span class="s">'y'</span>: j2[<span class="s">'y'</span>], <span class="s">'ok'</span>: j2[<span class="s">'available'</span>]}}).<span class="f">encode</span>()
+<span class="k">for</span> ip <span class="k">in</span> ROVER_IPS:                       <span class="c"># Wi-Fi first, then fibre</span>
+    _cmd_sock.<span class="f">sendto</span>(pkt, (ip, CMD_PORT))</pre></div>
+        <p class="al">The rover keeps the first copy and drops the late twin.</p>
+        <div class="code lq"><div class="cb"><i></i><i></i><i></i><span>rover.py · rover</span></div><pre>t = <span class="f">int</span>(d.<span class="f">get</span>(<span class="s">'t'</span>, <span class="n">0</span>))
+<span class="k">if</span> t &lt;= last <span class="k">and</span> (last - t) &lt; <span class="n">60000</span>:   <span class="c"># same or older: it came by the other link</span>
+    <span class="k">continue</span>
+last = t</pre></div>
+        <p class="al">The controller listens to both links and uses Wi-Fi while it's fresh.</p>
+        <div class="code lq"><div class="cb"><i></i><i></i><i></i><span>monitor.py · picking the link</span></div><pre>chosen = None
+<span class="k">for</span> ip <span class="k">in</span> ROVER_IPS:                       <span class="c"># Wi-Fi wins while it is fresh</span>
+    entry = _tel_last.<span class="f">get</span>(ip)
+    <span class="k">if</span> entry <span class="k">and</span> (now - entry[<span class="n">0</span>]) &lt;= TEL_TIMEOUT:   <span class="c"># 1.5 s</span>
+        chosen = ip
+        <span class="k">break</span>                                  <span class="c"># otherwise the fibre takes over</span></pre></div>
+        <h2>In numbers</h2>
+        <div class="stats">
+          <div class="st lq"><b>20&nbsp;Hz</b><span>commands, on both links</span></div>
+          <div class="st lq"><b>10&nbsp;Hz</b><span>telemetry back</span></div>
+          <div class="st lq"><b>1.5&nbsp;s</b><span>of Wi-Fi silence before the fibre takes over</span></div>
+          <div class="st lq"><b>0.4&nbsp;s</b><span>without a command and the motors stop</span></div>
+          <div class="st lq"><b>2 × 1080p30</b><span>MJPEG video streams</span></div>
+          <div class="st lq"><b>3&nbsp;km</b><span>reach of the fibre converters</span></div>
+        </div>
+        <div class="nexts"><button class="btn p" data-dl="rover">See the rover</button><button class="btn s" data-dl="remote">See the controller</button><button class="btn s" data-dl="select">All parts</button></div>
+      </section>
+    </div>
+  </div></section>
+  <section class="page p-record" id="pg-record" aria-label="Record"><div class="pw"><div class="pbg"></div><div class="wash"></div><div class="pc">
+    <h1 class="ttl r"><span class="tt">Record</span><span class="tb" aria-hidden="true">Record</span></h1><p class="lead r">Where I've been and what I picked up along the way.</p>
+    <div class="cards r"><article class="card lq"><h3>Siemens Energy</h3><p>Internship, PRAM department, Petrobrazi refinery.</p></article><article class="card lq"><h3>UniTBV · ETTI</h3><p>B.Eng. Telecommunications, Brașov.</p></article><article class="card lq"><h3>Certifications</h3><p>[Add yours, each with a verification link.]</p></article></div>
+  </div></div></section>
+  <section class="page p-about" id="pg-about" aria-label="About"><div class="pw"><div class="pbg"></div><div class="wash"></div><div class="pc">
+    <h1 class="ttl r"><span class="tt">About</span><span class="tb" aria-hidden="true">About</span></h1><p class="lead r">Off the clock: competitive tennis, F1 and games.</p>
+    <div class="cards r"><article class="card lq"><h3>Tennis</h3><p>Competitive player. The serve animation lands here.</p></article><article class="card lq"><h3>F1</h3><p>Race-engineer brain, sofa on Sundays.</p></article><article class="card lq"><h3>Games</h3><p>[Your current rotation]</p></article></div>
+  </div></div></section>
+  <section class="page p-contact" id="pg-contact" aria-label="Contact"><div class="pw"><div class="pbg"></div><div class="wash"></div><div class="pc">
+    <h1 class="ttl r"><span class="tt">Contact</span><span class="tb" aria-hidden="true">Contact</span></h1><p class="lead r">Open a channel. I read everything.</p>
+    <div class="cards r"><article class="card lq"><h3>Email</h3><p>[your email]</p></article><article class="card lq"><h3>LinkedIn</h3><p>[linkedin.com/in/…]</p></article><article class="card lq"><h3>GitHub</h3><p>[github.com/…]</p></article></div>
+    <div class="row r"><button class="btn s" data-go="home">Back home</button></div>
+  </div></div></section>
+  <div id="dim" aria-hidden="true"></div>
+</div></div>
+<div class="edge t" aria-hidden="true"></div><div class="edge b" aria-hidden="true"></div>
+<div id="veil" aria-hidden="true"></div>
+
+<button id="island" aria-expanded="false" aria-controls="orbs" aria-label="Open menu">
+  <span class="iprism" aria-hidden="true"><svg viewBox="-50 -50 100 100">
+    <defs><linearGradient id="pgr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e2eaff" stop-opacity=".30"/><stop offset=".55" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#b9c5ff" stop-opacity=".22"/></linearGradient></defs>
+    <polygon points="0,-40 34.641,20 -34.641,20" fill="url(#pgr)" stroke="rgba(255,255,255,.9)" stroke-width="1.3" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <polygon points="0,-30.5 26.4,15.25 -26.4,15.25" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+  </svg></span>
+  <span class="ilabel" id="ilabel" data-t="Home"><span>Home</span></span>
+  <span class="icap" id="icap">white light · 400–700 nm</span>
+  <i class="idot" id="idot"></i>
+</button>
+<span id="measure"></span>
+<div id="drop" aria-hidden="true"><svg class="glow"><defs><linearGradient id="dglo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".4" stop-color="#fff" stop-opacity="0"/><stop offset=".75" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".22"/></linearGradient></defs><path fill="none" stroke="url(#dglo)" stroke-width="16"/></svg><svg class="rim"><defs><linearGradient id="drim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".85"/><stop offset=".5" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity=".45"/></linearGradient></defs><path fill="none" stroke="url(#drim)" stroke-width="2.8"/></svg></div>
+<button id="back" hidden aria-label="Back to projects"><span class="tip">Projects</span><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 3.5L5.5 9l5.5 5.5"/></svg></button>
+
+<canvas id="light" aria-hidden="true"></canvas>
+<div id="orbs" role="menu" aria-label="Pages"></div>
+<div id="sheet" hidden><div class="sh-bg"></div><div class="sh lq bd" role="dialog" aria-modal="true" aria-label="Details"><button class="sh-x" aria-label="Close">×</button><div class="sh-c"></div></div></div>
+<div class="toast" id="toast" role="status"></div>
+
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script src="light.js"></script>
+<script src="dl3d.js"></script>
+<script>
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $=s=>document.querySelector(s),lerp=(a,b,t)=>a+(b-a)*t,clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
+const sstep=(a,b,x)=>{const t=clamp((x-a)/(b-a));return t*t*(3-2*t)};
+const RAD=Math.PI/180,root=document.documentElement;
+/* sim clock (test hooks can slow or freeze it; in normal use it is performance.now) */
+const TS={k:1,b:0,p:0,until:Infinity,onchange:null,set(k){this.b=now();this.p=performance.now();this.k=k;this.onchange&&this.onchange()},
+  freezeAt(t){this.until=t;this.frozen=false;this.onchange&&this.onchange();const chk=()=>{if(now()>=this.until){this._paused=document.getAnimations().filter(a=>a.playState==='running');this._paused.forEach(a=>a.pause());this.frozen=true}else setTimeout(chk,4)};chk()},
+  resume(){(this._paused||[]).forEach(a=>{try{const e=a.effect.getComputedTiming().endTime;if(a.currentTime>=e)a.finish();else a.play()}catch(x){}});this._paused=null;const t=now();this.until=Infinity;this.b=t;this.p=performance.now();this.frozen=false;this.onchange&&this.onchange()}};window.TS=TS;
+const now=()=>Math.min(TS.until,TS.b+(performance.now()-TS.p)*TS.k);window.simNow=()=>now();
+const sleep=ms=>new Promise(r=>{const end=now()+ms;if(ms<=0){r();return}(function chk(){if(now()>=end)r();else setTimeout(chk,Math.max(4,Math.min(40,(end-now())/Math.max(TS.k,.001)*.5)))})()});
+/* linear() easings (springs) need Safari 17.2 / Chrome 113; older engines get a close cubic-bezier instead of an exception */
+const LIN=(()=>{try{document.createElement('i').animate([{opacity:0},{opacity:1}],{duration:1,easing:'linear(0,1)'}).cancel();return true}catch(e){return false}})();
+function mkSpring(zeta,freq){if(!LIN)return zeta<.8?'cubic-bezier(.34,1.42,.5,1)':'cubic-bezier(.22,1.12,.36,1)';const w=freq*2*Math.PI,wd=w*Math.sqrt(1-zeta*zeta),pts=[];
+  for(let i=0;i<=48;i++){const t=i/48,x=1-Math.exp(-zeta*w*t)*(Math.cos(wd*t)+zeta*w/wd*Math.sin(wd*t));pts.push(+x.toFixed(4))}
+  pts[48]=1;return `linear(${pts.join(',')})`}
+const SPRING=mkSpring(.62,1.75),SOFT=mkSpring(.82,1.45),EASE='cubic-bezier(.65,0,.25,1)',OUT='cubic-bezier(.16,1,.3,1)',IN='cubic-bezier(.5,0,.75,0)';
+/* springs described the way Apple does (WWDC23, "Animate with springs"): a perceptual duration and a bounce. Stiffness
+   (2π / duration)², damping ratio 1 − bounce, unit mass. Sampled into a CSS linear() easing that lasts until the spring has
+   settled, so the compositor plays it. Bounce 0 is smooth, 0.15 a hint of life, 0.3 clearly bouncy; Apple warns above 0.4. */
+function aSpring(d,b=0){const w=2*Math.PI/d,z=1-b,eps=.0012,wd=w*Math.sqrt(Math.max(1e-9,1-z*z));let T=d;
+  if(z<1)T=Math.log(Math.sqrt(1+(z*w/wd)**2)/eps)/(z*w);else while(Math.exp(-w*T)*(1+w*T)>eps)T+=.005;
+  const x=t=>z<1?1-Math.exp(-z*w*t)*(Math.cos(wd*t)+z*w/wd*Math.sin(wd*t)):1-Math.exp(-w*t)*(1+w*t);
+  if(!LIN)return{e:b>.1?`cubic-bezier(.34,${(1+b*1.6).toFixed(2)},.5,1)`:'cubic-bezier(.2,.8,.2,1)',ms:Math.round(d*1250)};
+  const n=Math.min(90,Math.max(30,Math.round(T*70))),pts=[];for(let i=0;i<=n;i++)pts.push(+x(i/n*T).toFixed(4));pts[n]=1;
+  return{e:`linear(${pts.join(',')})`,ms:Math.round(T*1000)}}
+/* the island: opening is elastic (it grows like something alive), closing is quick and calm, a new label sits in between */
+const SPR={open:aSpring(.5,.2),close:aSpring(.4,.05),size:aSpring(.44,.14),pop:aSpring(.34,.3)};
+const idle=f=>(window.requestIdleCallback?requestIdleCallback(f,{timeout:2000}):setTimeout(f,250));
+
+/* ---------- quality tiers: 0 full · 1 balanced · 2 lite (no backdrop blur) · 3 minimal light ----------
+   start from device hints, then step down if the light animation actually keeps missing frames */
+const TIER=(()=>{const coarse=matchMedia('(pointer:coarse)').matches,cores=navigator.hardwareConcurrency||8,mem=navigator.deviceMemory||8;
+  let t=coarse?1:0;if(cores<=4||mem<=4)t=Math.max(t,2);
+  if(matchMedia('(prefers-reduced-transparency: reduce)').matches)t=Math.max(t,2);
+  const subs=[],apply=()=>{root.classList.toggle('t0',t===0);root.classList.toggle('t2',t>=2);subs.forEach(f=>f(t))};
+  const api={get t(){return t},set(v){v=clamp(Math.round(v),0,3);if(v!==t){t=v;apply()}},on(f){subs.push(f)},apply};
+  /* on battery: start balanced (Chrome and Samsung Internet expose this) */
+  try{navigator.getBattery&&navigator.getBattery().then(b=>{const f=()=>{if(!b.charging)api.set(Math.max(t,1))};f();b.addEventListener('chargingchange',f)}).catch(()=>{})}catch(e){}
+  return api})();
+TIER.apply();
+
+/* ---------- liquid glass: refraction maps (Chromium) ----------
+   A displacement map built from the shape's distance field bends what is behind the glass near its edges, the way a thick
+   rounded lens does; the middle stays clear. One SVG filter per size, built once while the browser is idle and reused.
+   Big panels get a lower-resolution map (the field is smooth, so it scales up cleanly). */
+const GLASS=(()=>{const ua=navigator.userAgent,ok=!!window.chrome&&/Chrome|Chromium|Edg\//.test(ua)&&!/Firefox|FxiOS|CriOS/.test(ua),NS='http://www.w3.org/2000/svg';
+  let host=null;const cache=new Map();
+  const sdf=(x,y,w,h,r)=>{const qx=Math.abs(x-w/2)-(w/2-r),qy=Math.abs(y-h/2)-(h/2-r);return Math.hypot(Math.max(qx,0),Math.max(qy,0))+Math.min(Math.max(qx,qy),0)-r};
+  function map(W,H,R,BZ){const k=W*H>160000?3:W*H>60000?2:1,w=Math.ceil(W/k),h=Math.ceil(H/k),r=R/k,bz=BZ/k;
+    const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d'),im=g.createImageData(w,h),d=im.data;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){const px=x+.5,py=y+.5,s=-sdf(px,py,w,h,r);let dx=0,dy=0;
+      if(s>0&&s<bz){const gx=sdf(px+1,py,w,h,r)-sdf(px-1,py,w,h,r),gy=sdf(px,py+1,w,h,r)-sdf(px,py-1,w,h,r),L=Math.hypot(gx,gy)||1,t=1-s/bz,m=t*t;dx=gx/L*m;dy=gy/L*m}
+      const i=(y*w+x)*4;d[i]=128+dx*127;d[i+1]=128+dy*127;d[i+2]=128;d[i+3]=255}g.putImageData(im,0,0);return c.toDataURL()}
+  function filterFor(w,h,r,sc=60){const k=w+'x'+h+'x'+r+'x'+sc;if(cache.has(k))return cache.get(k);
+    if(!host){host=document.createElementNS(NS,'svg');host.setAttribute('width','0');host.setAttribute('height','0');host.style.position='absolute';document.body.appendChild(host)}
+    const id='lg'+cache.size,f=document.createElementNS(NS,'filter');f.id=id;f.setAttribute('color-interpolation-filters','sRGB');
+    f.setAttribute('x','0');f.setAttribute('y','0');f.setAttribute('width',w);f.setAttribute('height',h);f.setAttribute('filterUnits','userSpaceOnUse');
+    f.innerHTML=`<feImage href="${map(w,h,r,Math.min(26,r*1.1))}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="m"/><feDisplacementMap in="SourceGraphic" in2="m" scale="${sc}" xChannelSelector="R" yChannelSelector="G"/>`;
+    host.appendChild(f);cache.set(k,id);return id}
+  /* maxTier: the lightest tier that still gets refraction (0 = full only, 1 = full and balanced); blur and saturation follow it */
+  function set(el,w,h,r,maxTier=1,sc=60,blur=1,sat=1.8){if(!ok||TIER.t>maxTier){clear(el);return}
+    const id=filterFor(Math.round(w),Math.round(h),Math.round(r),sc);el.style.backdropFilter=el.style.webkitBackdropFilter=`url(#${id}) blur(${blur}px) saturate(${sat}) brightness(1.05)`}
+  function prep(w,h,r,sc=70){if(ok)filterFor(Math.round(w),Math.round(h),Math.round(r),sc)}
+  function clear(el){el.style.backdropFilter=el.style.webkitBackdropFilter=''}
+  return{set,clear,prep,ok}})();
+
+/* glass surfaces that should refract: sized from the element, refreshed when it changes size or the tier changes */
+const LQ=(()=>{const opts=new Map(),q=new Set();let t=0;
+  const ro=window.ResizeObserver?new ResizeObserver(es=>es.forEach(e=>queue(e.target))):null;
+  function queue(el){q.add(el);if(!t)t=setTimeout(()=>{t=0;idle(()=>{q.forEach(apply);q.clear()})},140)}
+  function apply(el){const o=opts.get(el);if(!o||!el.isConnected)return;const w=el.offsetWidth,h=el.offsetHeight;if(!w||!h)return;
+    const r=Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius)||20,w/2,h/2);GLASS.set(el,w,h,r,o.tier,o.sc,o.blur,o.sat)}
+  function watch(el,o={}){if(!GLASS.ok||opts.has(el))return;opts.set(el,{tier:o.tier??1,sc:o.sc??50,blur:o.blur??2,sat:o.sat??1.8});ro?ro.observe(el):queue(el)}
+  TIER.on(()=>opts.forEach((o,el)=>queue(el)));
+  return{watch,apply}})();
+
+/* the light on the glass follows the pointer: one listener for every glass surface */
+(()=>{let cur=null,rf=0,ex=0,ey=0,tg=null;
+  addEventListener('pointermove',e=>{if(e.pointerType!=='mouse'||reduce)return;ex=e.clientX;ey=e.clientY;tg=e.target;if(rf)return;
+    rf=requestAnimationFrame(()=>{rf=0;const el=tg&&tg.closest?tg.closest('.lq'):null;
+      if(el!==cur){if(cur)cur.classList.remove('lit');cur=el;if(el)el.classList.add('lit')}
+      if(el){const r=el.getBoundingClientRect();el.style.setProperty('--mx',Math.round(ex-r.left)+'px');el.style.setProperty('--my',Math.round(ey-r.top)+'px')}})},{passive:true});
+  document.documentElement.addEventListener('pointerleave',()=>{if(cur){cur.classList.remove('lit');cur=null}})})();
+
+/* ---------- pages: each one is a wavelength ---------- */
+const PAGES=[
+  {id:'home',name:'Home',col:'#FF5A6A',lam:640,ic:'<path d="M4 11l8-7 8 7v9H4z"/>'},
+  {id:'projects',name:'Projects',col:'#FF9F43',lam:595,ic:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>'},
+  {id:'record',name:'Record',col:'#FFE14D',lam:572,ic:'<circle cx="12" cy="9" r="5"/><path d="M8.5 13l-1.5 8 5-3 5 3-1.5-8"/>'},
+  {id:'about',name:'About',col:'#5CF59A',lam:532,ic:'<circle cx="12" cy="12" r="8.5"/><path d="M5 6.5c3.5 3 3.5 8 0 11M19 6.5c-3.5 3-3.5 8 0 11"/>'},
+  {id:'contact',name:'Contact',col:'#4DC8FF',lam:482,ic:'<path d="M12 20v-6"/><circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 000 8.4M16.2 7.8a6 6 0 010 8.4M5 5a10 10 0 000 14M19 5a10 10 0 010 14"/>'},
+  {id:'cv',name:'CV',col:'#9B7BFF',lam:445,ic:'<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>'}];
+
+/* ---------- spectrum: CIE 1931 observer (Wyman, Sloan & Shirley 2013 multi-lobe fit) -> linear sRGB ---------- */
+const CIE=(()=>{const g=(l,a,b,c,d)=>{const t=(l-b)*(l<b?c:d);return a*Math.exp(-.5*t*t)};
+  return l=>{const X=g(l,.362,442,.0624,.0374)+g(l,1.056,599.8,.0264,.0323)+g(l,-.065,501.1,.049,.0382),
+    Y=g(l,.821,568.8,.0213,.0247)+g(l,.286,530.9,.0613,.0322),Z=g(l,1.217,437,.0845,.0278)+g(l,.681,459,.0385,.0725);
+    return[Math.max(0,3.2406*X-1.5372*Y-.4986*Z),Math.max(0,-.9689*X+1.8758*Y+.0415*Z),Math.max(0,.0557*X-.204*Y+1.057*Z)]}})();
+function pchip(xs,ys){const n=xs.length,h=[],d=[],m=new Array(n);
+  for(let i=0;i<n-1;i++){h[i]=xs[i+1]-xs[i];d[i]=(ys[i+1]-ys[i])/h[i]}
+  m[0]=d[0];m[n-1]=d[n-2];
+  for(let i=1;i<n-1;i++){if(d[i-1]*d[i]<=0)m[i]=0;else{const w1=2*h[i]+h[i-1],w2=h[i]+2*h[i-1];m[i]=(w1+w2)/(w1/d[i-1]+w2/d[i])}}
+  return x=>{if(x<=xs[0])return ys[0]+m[0]*(x-xs[0]);if(x>=xs[n-1])return ys[n-1]+m[n-1]*(x-xs[n-1]);
+    let i=0;while(x>xs[i+1])i++;const t=(x-xs[i])/h[i],t2=t*t,t3=t2*t;
+    return(2*t3-3*t2+1)*ys[i]+(t3-2*t2+t)*h[i]*m[i]+(-2*t3+3*t2)*ys[i+1]+(t3-t2)*h[i]*m[i+1]}}
+
+/* ---------- optics: 60° prism at fixed incidence; glass dispersion tuned so each page wavelength exits toward its orb ---------- */
+const OPT=(()=>{const A=60*RAD,TI=70*RAD,MARGIN=12*RAD,NRED=1.38;
+  const thetaE=n=>{const tr=Math.asin(Math.sin(TI)/n),s=n*Math.sin(A-tr);return s<1?Math.asin(s):null};
+  const dev=n=>{const t=thetaE(n);return t==null?null:TI+t-A};
+  const bis=(f,lo,hi)=>{for(let i=0;i<64;i++){const m=(lo+hi)/2;if(f(m))hi=m;else lo=m}return(lo+hi)/2};
+  const nTIR=bis(n=>thetaE(n)==null,1.0001,3),Dmax=dev(nTIR-1e-9),Dr=dev(NRED),Dv=Dmax-MARGIN;
+  PAGES.forEach((p,i)=>{p.D=Dr+(Dv-Dr)*i/5;p.n=bis(n=>{const d=dev(n);return d==null||d>p.D},1.0001,3)});
+  const PHI=Math.PI/2+(Dr+Dv)/2;
+  const byL=[...PAGES].sort((a,b)=>a.lam-b.lam);
+  const sV=(byL[1].n-byL[0].n)/(byL[1].lam-byL[0].lam),sR=(byL[5].n-byL[4].n)/(byL[5].lam-byL[4].lam);
+  const nOf=pchip([400,...byL.map(p=>p.lam),700],[byL[0].n+sV*(400-byL[0].lam),...byL.map(p=>p.n),byL[5].n+sR*.5*(700-byL[5].lam)]);
+  /* 28 spectral samples: a uniform grid plus the six page wavelengths exactly */
+  const K=28;let L=[];for(let i=0;i<22;i++)L.push(406+i*288/21);
+  L=L.filter(l=>PAGES.every(p=>Math.abs(p.lam-l)>5));PAGES.forEach(p=>L.push(p.lam));L.sort((a,b)=>a-b);
+  while(L.length<K){let gi=0,gm=0;for(let i=0;i<L.length-1;i++){const g=L[i+1]-L[i];if(g>gm){gm=g;gi=i}}L.splice(gi+1,0,(L[gi]+L[gi+1])/2)}
+  while(L.length>K){let gi=-1,gm=1e9;for(let i=1;i<L.length-1;i++){if(PAGES.some(p=>p.lam===L[i]))continue;const g=L[i+1]-L[i-1];if(g<gm){gm=g;gi=i}}L.splice(gi,1)}
+  /* emission-line lamp (like a mercury lamp): faint continuum plus one strong line per page */
+  const CONT=.09,LINE=15,isLine=l=>PAGES.some(p=>p.lam===l);
+  const bw=L.map((l,i)=>((L[i+1]??700)-(L[i-1]??400))/2),raw=L.map((l,i)=>CIE(l).map(c=>c*(isLine(l)?LINE:bw[i]*CONT))),sum=[0,1,2].map(c=>raw.reduce((s,r)=>s+r[c],0));
+  const SAMP=L.map((l,i)=>({lam:l,n:nOf(l),col:raw[i].map((v,c)=>v/sum[c]),page:PAGES.findIndex(p=>p.lam===l)}));
+  return{A,TI,PHI,nTIR,K,SAMP,nOf}})();
+
+/* ---------- 2D ray tracing ---------- */
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1]],sub=(a,b)=>[a[0]-b[0],a[1]-b[1]],mul=(a,s)=>[a[0]*s,a[1]*s],dot=(a,b)=>a[0]*b[0]+a[1]*b[1],
+  len=a=>Math.hypot(a[0],a[1]),norm=a=>{const l=Math.hypot(a[0],a[1])||1;return[a[0]/l,a[1]/l]};
+function refract(I,Nn,eta){const ci=-dot(Nn,I),k=1-eta*eta*(1-ci*ci);if(k<0)return null;return add(mul(I,eta),mul(Nn,eta*ci-Math.sqrt(k)))}
+function fresT(n1,n2,ci){const st=n1/n2*Math.sqrt(Math.max(0,1-ci*ci));if(st>=1)return 0;const ct=Math.sqrt(1-st*st),
+  rs=((n1*ci-n2*ct)/(n1*ci+n2*ct))**2,rp=((n1*ct-n2*ci)/(n1*ct+n2*ci))**2;return 1-(rs+rp)/2}
+function segHit(o,d,a,b){const e=sub(b,a),den=-d[0]*e[1]+d[1]*e[0];if(Math.abs(den)<1e-12)return null;const w=sub(a,o),
+  t=(-w[0]*e[1]+w[1]*e[0])/den,s=(d[0]*w[1]-d[1]*w[0])/den;return(t>1e-6&&s>=-1e-9&&s<=1+1e-9)?t:null}
+function trace(n,M,d,faces){const ent=faces[0];let dir=norm(refract(d,ent.N,1/n)),T=fresT(1,n,-dot(ent.N,d)),o=M;const pts=[];
+  for(let it=0;it<4;it++){let bt=null,bf=null;for(const f of faces){const t=segHit(o,dir,f.a,f.b);if(t!=null&&(bt==null||t<bt)){bt=t;bf=f}}
+    if(bt==null)return null;o=add(o,mul(dir,bt));pts.push(o);
+    const ci=dot(bf.N,dir),out=refract(dir,mul(bf.N,-1),n);
+    if(!out){dir=sub(dir,mul(bf.N,2*ci));continue}                  // total internal reflection
+    return{pts,u:norm(out),T:T*fresT(n,1,ci)}}
+  return null}
+function rayCircle(o,u,C,R){const w=sub(o,C),b=dot(u,w),c=dot(w,w)-R*R,D=b*b-c;return D<0?R:-b+Math.sqrt(D)}
+
+/* ---------- geometry: island = optical bench (lamp + prism), spectrum lands on the orb arc ---------- */
+const island=$('#island'),iprism=$('.iprism'),ilabel=$('#ilabel'),icap=$('#icap'),idot=$('#idot'),measure=$('#measure');
+const GEO={};
+function layout(){const w=innerWidth,h=innerHeight,mob=w<560,cx=w/2,top=parseFloat(getComputedStyle(island).top)||14;
+  const rho=mob?31:44,beam=mob?104:156,os=w<420?48:mob?52:60;
+  const d=[Math.cos(OPT.PHI),Math.sin(OPT.PHI)],Nent=OPT.PHI-Math.PI-OPT.TI,vang=[0,1,2].map(k=>Nent+Math.PI+k*2*Math.PI/3);
+  const V0=vang.map(a=>[rho*Math.cos(a),rho*Math.sin(a)]);
+  const faces=[0,1,2].map(j=>({a:V0[(j+1)%3],b:V0[(j+2)%3],N:[-Math.cos(vang[j]),-Math.sin(vang[j])]}));
+  const M0=mul(add(faces[0].a,faces[0].b),.5),L0=sub(M0,mul(d,beam));
+  const tr=OPT.SAMP.map(s=>trace(s.n,M0,d,faces));
+  const pg=PAGES.map(p=>tr[OPT.SAMP.findIndex(s=>s.lam===p.lam)]);
+  const X=pg.map(r=>r.pts[r.pts.length-1]),U=pg.map(r=>r.u),C0=mul(X.reduce((a,p)=>add(a,p),[0,0]),1/6);
+  const oy=top+30-L0[1],span=U[5][0]-U[0][0];
+  const R=Math.max(170,Math.min((w-os-34)/span,h-(C0[1]+oy)-(mob?130:110),mob?380:470));
+  let tI=X.map((x,i)=>rayCircle(x,U[i],C0,R)),orb0=X.map((x,i)=>add(x,mul(U[i],tI[i])));
+  if(len(sub(orb0[1],orb0[0]))<os+6){tI=tI.map((t,i)=>i%2?t*.8:t);orb0=X.map((x,i)=>add(x,mul(U[i],tI[i])))}   // only very narrow screens
+  const ox=cx-(Math.min(...orb0.map(o=>o[0]))+Math.max(...orb0.map(o=>o[0])))/2,sh=p=>[p[0]+ox,p[1]+oy];
+  Object.assign(GEO,{cx,top,rho,os,mob,d,R,V:V0.map(sh),M:sh(M0),L:sh(L0),orbs:orb0.map(sh),Lin:beam});
+  GEO.P=mul(GEO.V.reduce((a,p)=>add(a,p),[0,0]),1/3);
+  let r=(vang[0]+Math.PI/2)%(2*Math.PI/3);if(r>Math.PI/3)r-=2*Math.PI/3;if(r<=-Math.PI/3)r+=2*Math.PI/3;GEO.rot=r/RAD;
+  GEO.Rd=sub(d,mul(faces[0].N,2*dot(d,faces[0].N)));GEO.Ramp=1-fresT(1,OPT.nOf(560),-dot(faces[0].N,d));
+  const ang=U.map(u=>Math.atan2(u[1],u[0]));
+  const tOf=a=>{const s=ang.map((x,i)=>[x,tI[i]]).sort((p,q)=>p[0]-q[0]);if(a<=s[0][0])return s[0][1];if(a>=s[5][0])return s[5][1];
+    for(let i=0;i<5;i++)if(a<=s[i+1][0])return lerp(s[i][1],s[i+1][1],(a-s[i][0])/(s[i+1][0]-s[i][0]))};
+  const exA=tr.map(t=>{if(!t)return null;const a=Math.atan2(t.u[1],t.u[0]);return t.pts.length<=2&&Math.abs(a-Math.PI/2)<1.3?a:null});
+  GEO.samp=OPT.SAMP.map((s,k)=>{const t=tr[k];if(!t)return null;
+    const P1=sh(t.pts[0]),P2=sh(t.pts[t.pts.length-1]),l1=len(sub(P1,GEO.M)),l2=t.pts.length>1?len(sub(P2,P1)):0,a=exA[k];
+    let gap=.02;if(a!=null){const nb=[exA[k-1],exA[k+1]].filter(x=>x!=null).map(x=>Math.abs(x-a));if(nb.length)gap=Math.max(...nb)}
+    return{P1,P2,u:t.u,l1,l2,n:s.n,T:t.T,ghost:a==null,lout:a!=null?(s.page>=0?tI[s.page]:tOf(a)):420,spread:a!=null&&s.page<0?gap*.85:0}});
+  GEO.maxPath=Math.max(...GEO.samp.filter(Boolean).map(s=>GEO.Lin+s.n*(s.l1+s.l2)+s.lout));
+  GEO.page=PAGES.map((p,i)=>{const k=OPT.SAMP.findIndex(s=>s.lam===p.lam),s=GEO.samp[k];return{k,s:GEO.Lin+s.n*(s.l1+s.l2)+tI[i]}});
+  const minVx=Math.min(...GEO.V.map(v=>v[0])),maxVy=Math.max(...GEO.V.map(v=>v[1]));
+  GEO.iw=Math.round(2*Math.max(GEO.L[0]-cx+30,cx-minVx+26,mob?120:150));GEO.ih=Math.round(maxVy+18-top);
+  GEO.beams=buildBeams()}
+
+/* every visible piece of light is one capsule-shaped quad: start, end, style */
+function buildBeams(){const B=[],G=GEO,LG=3.4,CG=10,FAN=[],push=(A,E,o)=>B.push({A,E,...o});G.fan=FAN;
+  push(G.L,G.M,{kind:0,R:16,I:1,w0:1.2,s0:0});                                           // white beam: lamp -> prism
+  push(G.L,G.L,{kind:0,R:30,I:.9,w0:2.4,s0:0});                                          // the lamp itself
+  push(G.M,add(G.M,mul(G.Rd,420)),{kind:0,R:9,I:G.Ramp*.9,w0:1.1,s0:G.Lin,fade:150});     // Fresnel reflection off the top face
+  OPT.SAMP.forEach((s,k)=>{const t=G.samp[k];if(!t)return;const line=s.page>=0,gain=(line?LG:CG)*t.T,base={kind:1,col:s.col,lam:s.lam};
+    push(G.M,t.P1,{...base,R:line?7:6,I:gain*.55,s0:G.Lin,nS:s.n,w0:1.2});                 // inside the glass (optical path n·d: slower)
+    if(t.l2>.5)push(t.P1,t.P2,{...base,R:6,I:gain*.55,s0:G.Lin+s.n*t.l1,nS:s.n,w0:1.2});  // after total internal reflection
+    const s1=G.Lin+s.n*(t.l1+t.l2);
+    if(!line&&!t.ghost){FAN.push({P2:t.P2,u:t.u,lout:t.lout,s0:s1,col:s.col,lam:s.lam,I:gain*3.2,a:Math.atan2(t.u[1],t.u[0])});return}
+    push(t.P2,add(t.P2,mul(t.u,t.lout)),{...base,R:line?12:7,I:t.ghost?gain*.35:gain,s0:s1,w0:line?1.25:1.2,spread:t.spread,fade:t.ghost?160:0});
+    if(line){const e=add(t.P2,mul(t.u,t.lout));push(e,e,{...base,R:26,I:gain*.3,s0:s1+t.lout,w0:5})}});
+  [[1,.28,.32],[.3,1,.5],[.36,.5,1]].forEach((c,j)=>{for(let e=0;e<3;e++)push(G.V[e],G.V[(e+1)%3],{group:j+1,kind:2,R:12,I:1,col:c,w0:1.1})});  // dive fringes
+  FAN.sort((p,q)=>p.a-q.a);return B}
+
+/* vertex data for the light: 6 vertices per capsule, 24 floats each, plus the continuum fan mesh */
+function buildVerts(){const F=[];
+  GEO.beams.forEach(o=>{const A=o.A,E=o.E,g=o.group||0,R=o.R,L=len(sub(E,A)),dir=L>1e-6?mul(sub(E,A),1/L):[1,0],nr=[-dir[1],dir[0]],spr=o.spread||0,hA=R,hB=R+3*L*spr;
+    const cs=[[0,-1],[0,1],[1,-1],[1,1]].map(([e,sd])=>{const hw=e?hB:hA,along=e?hB:-hA,b=sd*hw,C=e?E:A;
+      if(!g){const p=add(add(C,mul(dir,along)),mul(nr,b));return[p[0],p[1],0,0,(e?L:0)+along,0,b,0]}
+      const off=add(mul(dir,along),mul(nr,b));return[C[0],C[1],off[0],off[1],e?L:0,along,b,g]});
+    const rest=[L,o.kind,R,o.I,...(o.col||[1,1,1]),o.lam||0,o.s0||0,o.nS||1,o.w0||1.2,spr,o.fade||0,0,0,0];
+    for(const i of[0,1,2,1,3,2])F.push(...cs[i],...rest)});
+  /* continuous spectrum: a single fan mesh; the GPU interpolates wavelength, colour and travel time between neighbouring rays */
+  const fan=GEO.fan||[],vx=(f,e,far)=>{const p=far?add(f.P2,mul(f.u,f.lout)):f.P2;
+    return[p[0],p[1],0,0, far?f.lout:0,0,e,0, f.lout,3,0,f.I, ...f.col,f.lam, f.s0,1,1,0, 0,0,0,0]};
+  for(let i=0;i<fan.length-1;i++){const A=fan[i],B=fan[i+1],eA=i===0?0:1,eB=i+1===fan.length-1?0:1;
+    const q=[vx(A,eA,0),vx(B,eB,0),vx(A,eA,1),vx(B,eB,1)];for(const j of[0,1,2,1,3,2])F.push(...q[j])}
+  const S=new Float32Array(4*OPT.K);OPT.SAMP.forEach((s,k)=>S.set([...s.col,s.lam],4*k));
+  return{verts:new Float32Array(F),S}}
+
+/* ---------- light: rendered on its own thread (Worker + OffscreenCanvas) when the browser allows it ----------
+   Fallbacks, in order: the same WebGL renderer on the main thread, then plain 2D strokes. */
+const LIGHT=(()=>{let cv=$('#light'),kind='none',w=null,eng=null,transferred=false,readyT=0;
+  const st={on:-1e12,off:-1e12,sw:1e12,lam0:532,v:reduce?1e6:2.0,h0:[0,0],h1:[0,0],hT:-1e12};
+  let geo=null,size=null,sizeKey='',vis=false,dive=null,alive=-1e12,pingN=0;const pings=new Map(),subs=[];
+  const MSG={clock:()=>({t:'clock',c:{b:TS.b,p:TS.p,k:TS.k,until:TS.until}}),size:()=>size&&{t:'size',...size},geo:()=>geo&&{t:'geo',verts:geo.verts,S:geo.S},
+    st:()=>({t:'st',st:{...st,h0:[...st.h0],h1:[...st.h1]}}),dive:()=>({t:'dive',d:dive&&{...dive}}),vis:()=>({t:'vis',on:vis}),alive:()=>({t:'alive',until:alive})};
+  const post=m=>{if(!m)return;if(kind==='worker')w.postMessage(m);else if(eng)eng.msg(m)};
+  const push=(...ks)=>ks.forEach(k=>post(MSG[k]()));
+  function onMsg(m){
+    if(m.t==='ready'){clearTimeout(readyT);if(!m.ok){console.info('light: main-thread fallback ('+m.why+')');toMain()}}
+    else if(m.t==='jank'){if(TIER.t<3)TIER.set(TIER.t+1)}
+    else if(m.t==='pong')m.ids.forEach(id=>{const r=pings.get(id);if(r){pings.delete(id);r(m)}})}
+  function startLocal(){const E=window.PrismLightEngine;
+    if(E){eng=E(cv,{K:OPT.K,post:onMsg,raf:cb=>requestAnimationFrame(cb),toDoc:ts=>ts});if(eng.ok){kind='gl';return}}
+    eng=Flat2D(cv,st,onMsg);kind='2d'}
+  /* a canvas handed to a worker can never be drawn from this thread again: fall back on a fresh one */
+  function toMain(){if(w){try{w.terminate()}catch(e){}w=null}
+    if(transferred){const nc=document.createElement('canvas');nc.id='light';nc.setAttribute('aria-hidden','true');nc.style.display=cv.style.display;cv.replaceWith(nc);cv=nc;transferred=false}
+    kind='none';eng=null;startLocal();push('clock','size','geo','st','dive','vis','alive')}
+  function start(){
+    if(window.PrismLightEngine&&!window.LIGHT_NOWORKER&&typeof Worker==='function'&&typeof OffscreenCanvas==='function'&&cv.transferControlToOffscreen){
+      try{w=new Worker('light.js');w.onmessage=e=>onMsg(e.data);w.onerror=e=>{e.preventDefault();console.info('light: main-thread fallback (worker failed)');toMain()};
+        const off=cv.transferControlToOffscreen();transferred=true;
+        w.postMessage({t:'init',canvas:off,K:OPT.K,docOrigin:performance.timeOrigin},[off]);kind='worker';
+        readyT=setTimeout(()=>{if(kind==='worker'){console.info('light: main-thread fallback (worker timeout)');toMain()}},4000);
+        push('clock');return}
+      catch(e){console.info('light: main-thread fallback',e);if(w){try{w.terminate()}catch(x){}w=null}if(transferred){toMain();return}}}
+    startLocal();push('clock')}
+  const travel=()=>(GEO.maxPath||900)/st.v+80;
+  function kick(ms=1600){const u=now()+ms;if(u>alive){alive=u;push('alive')}}
+  const emit=settle=>subs.forEach(f=>f(settle));
+  return{start,
+    setGeo(){geo=buildVerts();push('geo');kick(60)},
+    resize(){const caps=[1.5,1.25,1,.75],res=Math.min(devicePixelRatio||1,caps[TIER.t])*(window.LIGHT_RES||1);
+      const s={w:Math.max(1,Math.round(innerWidth*res)),h:Math.max(1,Math.round(innerHeight*res)),cw:innerWidth,ch:innerHeight},k=s.w+'x'+s.h+'/'+s.cw+'x'+s.ch;
+      if(k!==sizeKey){sizeKey=k;size=s;push('size')}kick(60)},
+    clock(){push('clock')},
+    ignite(){st.on=now();st.off=1e12;st.sw=1e12;st.h0=[0,0];st.h1=[0,0];st.hT=-1e12;dive=null;vis=true;cv.style.display='block';
+      push('st','dive','vis');kick(travel()+400);emit(20)},
+    narrow(l){st.sw=now();st.lam0=l;push('st');kick(travel()+700);emit(310)},
+    off(){if(st.off>now())st.off=now();push('st');kick(travel()+100);emit(20)},
+    hover(l,amt){st.h0=st.h1;st.h1=[l||0,l?amt:0];st.hT=now();push('st');kick(travel()+200);emit(100)},
+    dive(d){dive={...d,t0:null};push('dive');kick(d.dur+400)},
+    diveStart(t0){if(!dive)return;dive.t0=t0;push('dive');kick(t0+dive.dur+80-now())},
+    diveEnd(){dive=null;push('dive')},
+    hide(){cv.style.display='none';vis=false;push('vis')},
+    sync(){return new Promise(r=>{const id=++pingN;pings.set(id,r);post({t:'ping',id});setTimeout(()=>{if(pings.has(id)){pings.delete(id);r({timeout:true})}},5000)})},
+    on(f){subs.push(f)},kick,get travel(){return travel()},get el(){return cv},get mode(){return kind},get dv(){return dive},st}})();
+TS.onchange=()=>LIGHT.clock();
+
+/* 2D fallback (no WebGL anywhere): the same beams as plain strokes, on the main thread */
+function Flat2D(cv,st,post){const g=cv.getContext('2d');let cw=1,ch=1,res=1,vis=false,alive=-1e12,raf=0,dv=null,last=0,frames=0,slow=0;const pings=[];
+  function draw(t){g.setTransform(res,0,0,res,0,0);g.clearRect(0,0,cw,ch);if(!vis)return;g.globalCompositeOperation='lighter';g.lineCap='round';
+    const fade=dv?1-sstep(.15,.55,dv.t0==null?0:clamp((t-dv.t0)/dv.dur)):1;
+    (GEO.beams||[]).forEach(o=>{if(o.kind===2)return;const te=t-(o.s0||0)/st.v,on=EM.onA(te);if(on<.02)return;
+      const c=o.kind===0?EM.spec(te):o.col.map(x=>x*EM.wgt(o.lam,te)),k=o.I*on*fade;
+      g.strokeStyle=`rgb(${c.map(x=>Math.round(255*Math.min(1,1-Math.exp(-x*k*1.6)))).join(',')})`;g.lineWidth=o.A===o.E?6:2;
+      g.beginPath();g.moveTo(o.A[0],o.A[1]);g.lineTo(o.A===o.E?o.A[0]+.1:o.E[0],o.A===o.E?o.A[1]:o.E[1]);g.stroke()})}
+  function loop(ts){raf=0;const t=now();draw(t);if(pings.length)post({t:'pong',ids:pings.splice(0)});
+    if(last){const dt=ts-last;frames++;if(dt>45)slow++;if(frames>=30){if(slow/frames>.25)post({t:'jank'});frames=slow=0}}
+    last=ts;if(t<alive)raf=requestAnimationFrame(loop);else last=0}
+  return{ok:true,msg(m){if(m.t==='size'){cv.width=m.w;cv.height=m.h;cw=m.cw;ch=m.ch;res=m.w/m.cw}else if(m.t==='vis')vis=m.on;else if(m.t==='dive')dv=m.d;
+    else if(m.t==='alive')alive=Math.max(alive,m.until);else if(m.t==='ping')pings.push(m.id);else if(m.t!=='st'&&m.t!=='clock'&&m.t!=='geo')return;
+    if(!raf)raf=requestAnimationFrame(loop)}}}
+
+/* ---------- emission model on the main thread: when each orb is lit and what colour the lamp is ----------
+   (the same equations the shader uses; event times are absolute here) */
+const EM=(()=>{const st=LIGHT.st;
+  const sig=te=>te<st.sw?1e4:Math.max(2,300*Math.exp(-(te-st.sw)/60));
+  const cmp=te=>te<st.sw?1:clamp(119.7/sig(te),1,6);
+  const onA=te=>sstep(st.on,st.on+12,te)*(1-sstep(st.off,st.off+12,te));
+  const bump=(l,te)=>{const k=sstep(st.hT,st.hT+90,te),d0=l-st.h0[0],d1=l-st.h1[0];return 1+lerp(st.h0[1]*Math.exp(-.5*d0*d0/64),st.h1[1]*Math.exp(-.5*d1*d1/64),k)};
+  const wgt=(l,te)=>{const s=sig(te),d=l-st.lam0;return Math.exp(-.5*d*d/(s*s))*cmp(te)*bump(l,te)};
+  const spec=te=>{const c=[0,0,0];OPT.SAMP.forEach(s=>{const w=wgt(s.lam,te);c[0]+=s.col[0]*w;c[1]+=s.col[1]*w;c[2]+=s.col[2]*w});return c};
+  return{onA,wgt,spec,
+    litAt(i,t){const te=t-GEO.page[i].s/st.v;return onA(te)*wgt(PAGES[i].lam,te)},
+    lampAt(t){if(onA(t)<=.05)return null;const c=spec(t),mx=Math.max(...c,1e-6);return c.map(x=>Math.round(255*Math.min(1,Math.pow(x/mx,.6))))}}})();
+LIGHT.litAt=(i,t)=>EM.litAt(i,t);
+
+/* ---------- island morph (Dynamic Island -> optical bench) ---------- */
+let LBL='Home',current='home',busy=false,menuOpen=false,SEL=-1;
+const textW=t=>{measure.textContent=t;return Math.ceil(measure.offsetWidth)};
+function closedLay(lbl=LBL){const lw=textW(lbl),w=8+32+10+lw+10+8+16;
+  return{w,h:46,r:23,prism:{x:-w/2+24,y:23,rot:0,s:.31},label:{x:-w/2+50,y:23,w:lw+4},cap:{x:-w/2+50,y:30,o:0},dot:{x:w/2-20,y:23,s:1}}}
+function openLay(){const g=GEO;return{open:1,w:g.iw,h:g.ih,r:34,prism:{x:g.P[0]-g.cx,y:g.P[1]-g.top,rot:g.rot,s:g.rho/40},
+  label:{x:-g.iw/2+22,y:28,w:g.iw-44},cap:{x:-g.iw/2+22,y:47,o:1},dot:{x:g.L[0]-g.cx,y:g.L[1]-g.top,s:1.35}}}
+const tPr=l=>`translate(${l.x}px,${l.y}px) translate(-50%,-50%) rotate(${l.rot}deg) scale(${l.s})`,tLb=l=>`translate(${l.x}px,${l.y-11}px)`,tDt=l=>`translate(${l.x}px,${l.y}px) translate(-50%,-50%) scale(${l.s})`;
+function morph(el,to,dur,ease,delay=0){const cs=getComputedStyle(el),from={};for(const k in to)from[k]=cs[k];
+  el.getAnimations().filter(a=>!a.id).forEach(a=>a.cancel());Object.assign(el.style,to);
+  if(!dur||reduce)return Promise.resolve();return el.animate([from,to],{duration:dur,delay,easing:ease,fill:'backwards'}).finished.catch(()=>{})}
+let glassT=0,onIslandW=null;
+/* Staged the way the Dynamic Island moves: opening, the width leads and the height follows a beat later; closing, the height
+   goes first. Every value starts from where it is on screen, so an interrupted morph simply turns around. The text inside
+   waits for the shape (it comes into focus once there is room for it) and leaves before it. */
+function islandTo(l,{spr=SPR.size,stage=0,dur}={}){ilabel.style.width=l.label.w+'px';
+  /* a refraction map only fits one size: plain glass while the shape morphs, refraction again once it settles */
+  GLASS.clear(island);clearTimeout(glassT);
+  const D=dur===0||reduce?0:spr.ms,E=spr.e,cs=getComputedStyle(island),fw=cs.width,fh=cs.height,fr=cs.borderRadius,dw=stage<0?45:0,dh=stage>0?55:0;
+  island.getAnimations().forEach(a=>{if(a.id==='mw'||a.id==='mh')a.cancel()});
+  Object.assign(island.style,{width:l.w+'px',height:l.h+'px',borderRadius:l.r+'px'});
+  const P=[morph(iprism,{transform:tPr(l.prism)},D,E,dw),morph(ilabel,{transform:tLb(l.label)},D,E,dw),morph(icap,{transform:tLb(l.cap)},D,E,dw),morph(idot,{transform:tDt(l.dot)},D,E,dw)];
+  if(D){P.push(island.animate([{width:fw},{width:l.w+'px'}],{duration:D,delay:dw,easing:E,fill:'backwards',id:'mw'}).finished.catch(()=>{}),
+      island.animate([{height:fh,borderRadius:fr},{height:l.h+'px',borderRadius:l.r+'px'}],{duration:D,delay:dh,easing:E,fill:'backwards',id:'mh'}).finished.catch(()=>{}));
+    const o0=getComputedStyle(icap).opacity,on=l.cap.o>0;icap.getAnimations().forEach(a=>{if(a.id==='cap')a.cancel()});icap.style.opacity=String(l.cap.o);
+    icap.animate([{opacity:o0,filter:on?'blur(5px)':'blur(0px)'},{opacity:String(l.cap.o),filter:on?'blur(0px)':'blur(4px)'}],{duration:on?D*.55:160,delay:on?D*.3:0,easing:on?OUT:IN,fill:'backwards',id:'cap'})}
+  else icap.style.opacity=String(l.cap.o);
+  if(onIslandW&&!l.open)onIslandW(l.w,D,E,dw);
+  const done=Promise.all(P);
+  done.then(()=>{if(island.classList.contains('open')){if(menuOpen&&!busy)glassT=setTimeout(()=>GLASS.set(island,l.w,l.h,l.r,0,40,2.5),80)}
+    else if(!menuOpen)glassT=setTimeout(()=>GLASS.set(island,l.w,l.h,l.r,1,70),60)});return done}
+/* Apple's blur replace: the old words blur and shrink away quickly, the new ones come into focus a beat later */
+function setLabel(txt){if(ilabel.dataset.t===txt)return;ilabel.dataset.t=txt;const old=[...ilabel.children],nw=document.createElement('span');nw.textContent=txt;ilabel.appendChild(nw);
+  if(reduce){old.forEach(s=>s.remove());return}
+  old.forEach(s=>{const o=getComputedStyle(s).opacity;s.getAnimations().forEach(a=>a.cancel());
+    s.animate([{opacity:o,filter:'blur(0px)',scale:'1'},{opacity:0,filter:'blur(6px)',scale:'.86'}],{duration:170,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'}).finished.then(()=>s.remove(),()=>s.remove())});
+  nw.animate([{opacity:0,filter:'blur(7px)'},{opacity:1,filter:'blur(0px)'}],{duration:320,delay:70,easing:OUT,fill:'backwards'});
+  nw.animate([{scale:'.84'},{scale:'1'}],{duration:SPR.pop.ms,delay:70,easing:SPR.pop.e,fill:'backwards'})}
+function setCap(txt){if(icap.textContent===txt)return;icap.textContent=txt;
+  if(!reduce){icap.getAnimations().forEach(a=>{if(a.id==='f')a.cancel()});icap.animate([{opacity:.15,filter:'blur(3px)'},{opacity:1,filter:'blur(0px)'}],{duration:240,easing:OUT,id:'f'})}}
+function collapseIsland(){island.classList.remove('open');setLabel(LBL);return islandTo(closedLay(),{spr:SPR.close,stage:-1})}
+/* refraction maps for every label the island can show, built while the browser is idle (not in the middle of a dive) */
+function prepGlass(){if(GLASS.ok)idle(()=>PAGES.forEach(p=>{if(p.id==='cv')return;const l=closedLay(p.name);GLASS.prep(l.w,l.h,l.r)}))}
+
+/* ---------- orbs ---------- */
+const orbsBox=$('#orbs'),veil=$('#veil'),stage=$('#stage'),dimEl=$('#dim');
+const ORBS=PAGES.map((p,i)=>{const b=document.createElement('button');b.className='orb';b.setAttribute('role','menuitem');b.dataset.id=p.id;b.tabIndex=-1;b.style.setProperty('--oc',p.col);
+  b.setAttribute('aria-label',p.name+(p.id==='cv'?' (download)':''));
+  b.innerHTML=`<span class="oin"><span class="og"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p.ic}</svg></span><span class="ol">${p.name}</span>`;
+  orbsBox.appendChild(b);
+  b.addEventListener('pointerenter',()=>hover(i));b.addEventListener('pointerleave',()=>hover(-1));
+  b.addEventListener('focus',()=>hover(i));b.addEventListener('blur',()=>hover(-1));
+  b.addEventListener('click',()=>select(i));return{b,p,shown:false,og:b.querySelector('.og'),ic:b.querySelector('svg'),ol:b.querySelector('.ol')}});
+function placeOrbs(){ORBS.forEach((o,i)=>{o.b.style.left=GEO.orbs[i][0]+'px';o.b.style.top=GEO.orbs[i][1]+'px';o.b.classList.toggle('cur',o.p.id===current)})}
+function materialize(o){o.shown=true;o.b.classList.add('vis');o.b.getAnimations().forEach(a=>a.cancel());
+  o.b.animate([{opacity:0,transform:'scale(.45)'},{opacity:1,transform:'scale(1)'}],{duration:reduce?1:SPR.pop.ms+120,easing:SPR.pop.e,fill:'both'});
+  if(!reduce)o.b.animate([{filter:'blur(6px)'},{filter:'blur(0px)'}],{duration:260,easing:OUT})}
+function dematerialize(o,ms=320){o.shown=false;o.b.classList.remove('vis');const cs=getComputedStyle(o.b);
+  o.b.getAnimations().forEach(a=>a.cancel());o.b.animate([{opacity:cs.opacity,transform:cs.transform==='none'?'scale(1)':cs.transform},{opacity:0,transform:'scale(.7)'}],{duration:reduce?1:ms,easing:IN,fill:'forwards'})}
+
+/* ---------- the light decides what the orbs do: lit when their wavelength arrives, gone when it leaves ----------
+   Each light event (on, hover, tune, off) is turned into opacity keyframes sampled from the emission model until the light
+   settles. The compositor plays them, so there is no per-frame style work; the materialize / dematerialize thresholds become
+   timers at the exact crossing times. */
+const OL={end:-1e12,tok:0};let ACCENT='#FF5A6A';      // tracked here so scheduling never forces a style recalc
+/* keep only the samples that straight-line interpolation cannot reproduce within eps (a 60-sample curve needs ~5-12) */
+function thin(n,err,eps){const keep=[0];let a=0;
+  for(let j=2;j<=n;j++)for(let m=a+1;m<j;m++)if(err(a,m,j,(m-a)/(j-a))>eps){keep.push(j-1);a=j-1;break}
+  keep.push(n);return keep}
+function opAnim(el,v,dur){if(el._la){el._la.cancel();el._la=null}const n=v.length-1;let lo=v[0],hi=v[0];for(const x of v){if(x<lo)lo=x;if(x>hi)hi=x}
+  if(hi-lo<.004){el.style.opacity=String(+v[n].toFixed(3));return}
+  const k=thin(n,(a,m,j,f)=>Math.abs(v[a]+(v[j]-v[a])*f-v[m]),.0025);
+  el.style.opacity='';el._la=el.animate(k.map(i=>({opacity:+v[i].toFixed(3),offset:i/n})),{duration:dur,easing:'linear',fill:'forwards'})}
+function atSim(t,fn,tok){(function chk(){if(tok!==OL.tok)return;const r=t-now();if(r<=0)fn();else setTimeout(chk,Math.max(4,Math.min(40,r/Math.max(TS.k,.001)*.5)))})()}
+function orbCheck(i){const o=ORBS[i],lit=EM.litAt(i,now());
+  if(lit>.06&&!o.shown&&menuOpen&&!busy)materialize(o);
+  else if(lit<.03&&o.shown&&!(busy&&i===SEL))dematerialize(o)}
+function scheduleLight(settle){if(!GEO.page)return;const st=LIGHT.st,t0=now(),arr=Math.max(...GEO.page.map(p=>p.s))/st.v;
+  const end=Math.max(OL.end,t0+arr+settle+16),DT=8,n=Math.max(1,Math.ceil((end-t0)/DT)),dur=n*DT,tok=++OL.tok;OL.end=end;
+  ORBS.forEach((o,i)=>{const G=new Array(n+1),I=new Array(n+1),L=new Array(n+1);let shown=o.shown;
+    for(let j=0;j<=n;j++){const t=t0+j*DT,lit=EM.litAt(i,t),m=Math.min(1,lit);
+      G[j]=Math.min(1.7,lit)*.45;I[j]=.3+.7*m;L[j]=.15+.85*m;
+      if(!shown&&lit>.06){shown=true;atSim(t,()=>orbCheck(i),tok)}else if(shown&&lit<.03){shown=false;atSim(t,()=>orbCheck(i),tok)}}
+    opAnim(o.og,G,dur);opAnim(o.ic,I,dur);opAnim(o.ol,L,dur)});
+  /* the lamp dot on the island takes the colour of the light it emits; the accent colour when it is off */
+  const acc=[1,3,5].map(i=>parseInt(ACCENT.slice(i,i+2),16)),C=[],on=[];
+  for(let j=0;j<=n;j++){const c=EM.lampAt(t0+j*DT);C.push(c||acc);on.push(!!c)}
+  idot.getAnimations().forEach(a=>{if(a.id==='lamp')a.cancel()});
+  if(on.some(Boolean)){const css=c=>`rgb(${c.join(',')})`,
+      k=thin(n,(a,m,j,f)=>on[a]!==on[m]||on[m]!==on[j]?1e9:Math.max(...[0,1,2].map(c=>Math.abs(C[a][c]+(C[j][c]-C[a][c])*f-C[m][c]))),1.5);
+    idot.animate(k.map(i=>({backgroundColor:css(C[i]),boxShadow:`0 0 12px ${css(C[i])}`,offset:i/n})),{duration:dur,easing:'linear',fill:on[n]?'forwards':'none',id:'lamp'})}}
+LIGHT.on(scheduleLight);
+function resetOrbLight(){OL.tok++;OL.end=-1e12;ORBS.forEach(o=>[o.og,o.ic,o.ol].forEach(el=>{if(el._la){el._la.cancel();el._la=null}el.style.opacity=''}))}
+
+/* ---------- layout is cached: recomputed (and the light geometry re-uploaded) only when the viewport changes ---------- */
+let layKey='';
+function ensureLayout(force){const k=innerWidth+'x'+innerHeight+'@'+(devicePixelRatio||1);if(!force&&k===layKey&&GEO.beams)return false;
+  layKey=k;layout();LIGHT.setGeo();LIGHT.resize();return true}
+
+/* ---------- menu ---------- */
+let hovI=-1,hovT=0;
+function hover(i){if(!menuOpen||busy)return;clearTimeout(hovT);
+  if(i<0){hovT=setTimeout(()=>{hovI=-1;LIGHT.hover(0,0);setLabel('Pages');setCap(GEO.mob?'white light':'white light · 400–700 nm')},120);return}
+  if(hovI===i)return;hovI=i;const p=PAGES[i];LIGHT.hover(p.lam,1.7);setLabel(p.name);
+  setCap(GEO.mob?`${p.lam} nm · n ${p.n.toFixed(2)}`:`λ ${p.lam} nm · n ${p.n.toFixed(3)} · δ ${(p.D/RAD).toFixed(1)}°`)}
+async function openMenu(viaKey){if(menuOpen||busy)return;menuOpen=true;DROP.pause(true);PROJ.vis();SEL=-1;hovI=-1;ensureLayout();placeOrbs();resetOrbLight();
+  ORBS.forEach(o=>{o.shown=false;o.b.getAnimations().forEach(a=>a.cancel());o.b.style.opacity='';o.b.classList.remove('vis');o.b.tabIndex=0});
+  island.classList.add('open');island.setAttribute('aria-expanded','true');island.setAttribute('aria-label','Close menu');
+  orbsBox.style.visibility='';orbsBox.classList.add('on');veil.classList.add('on');
+  [LIGHT.el,orbsBox].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());el.style.transform='';el.style.opacity=''});
+  setLabel('Pages');icap.textContent=GEO.mob?'white light':'white light · 400–700 nm';
+  iprism.getAnimations().forEach(a=>a.cancel());iprism.style.opacity='';
+  islandTo(openLay(),{spr:SPR.open,stage:1});
+  ORBS.forEach(o=>{const z=o.b.offsetWidth;if(z)GLASS.set(o.b,z,z,z/2,0,24,1.5,1.9)});
+  await sleep(reduce?0:400);if(!menuOpen||busy)return;
+  LIGHT.ignite();
+  if(viaKey)setTimeout(()=>ORBS[0].b.focus({preventScroll:true}),reduce?0:LIGHT.travel)}
+function releaseMenu(){menuOpen=false;PROJ.vis();veil.classList.remove('on');orbsBox.classList.remove('on');
+  island.setAttribute('aria-expanded','false');island.setAttribute('aria-label','Open menu');ORBS.forEach(o=>o.b.tabIndex=-1)}
+async function closeMenu(){if(!menuOpen)return;releaseMenu();LIGHT.off();setLabel(LBL);
+  await sleep(reduce?0:140);if(menuOpen)return;collapseIsland();if(!busy&&current==='dl')DROP.pause(false);
+  await sleep(LIGHT.travel);if(!menuOpen&&!busy){LIGHT.hide();orbsBox.style.visibility='hidden'}}
+island.addEventListener('click',e=>{if(busy)return;menuOpen?closeMenu():openMenu(e.detail===0)});
+veil.addEventListener('click',()=>{if(!busy)closeMenu()});
+addEventListener('keydown',e=>{if(!menuOpen)return;
+  if(e.key==='Escape'&&!busy){closeMenu();island.focus()}
+  if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const vis=ORBS.filter(o=>o.shown),k=vis.findIndex(o=>o.b===document.activeElement);
+    const nx=vis[(k+(e.key==='ArrowRight'?1:-1)+vis.length)%vis.length];if(nx){nx.b.focus();e.preventDefault()}}});
+addEventListener('resize',()=>{clearTimeout(window._rz);window._rz=setTimeout(()=>{ensureLayout(true);
+  if(menuOpen&&!busy){placeOrbs();islandTo(openLay(),{dur:0})}else if(!busy)islandTo(closedLay(),{dur:0})},150)});
+
+/* ---------- navigation: tune the lamp to the page wavelength, then dive through the prism ---------- */
+const pageEl=id=>document.getElementById('pg-'+id);
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2000)}
+function revealContent(el,skip){el.classList.remove('pre');[...el.querySelectorAll('.r')].filter(r=>r!==skip).forEach((r,i)=>r.animate(
+  [{opacity:0,transform:'translateY(22px)'},{opacity:1,transform:'none'}],{duration:reduce?1:760,delay:reduce?0:i*70,easing:SOFT,fill:'both'}))}
+async function select(i){if(busy||!menuOpen)return;const P=PAGES[i];
+  if(P.id===current){closeMenu();return}
+  if(current==='dl'&&P.id==='projects'){closeMenu();setTimeout(()=>DL.leave(),reduce?0:260);return}
+  busy=true;SEL=i;clearTimeout(hovT);
+  LIGHT.narrow(P.lam);setLabel(P.name);setCap(GEO.mob?`${P.lam} nm`:`λ ${P.lam} nm · monochrome`);
+  if(P.id==='cv'){await sleep(560);toast('Your CV download would start here');busy=false;SEL=-1;closeMenu();return}
+  LBL=P.name;root.style.setProperty('--accent',P.col);ACCENT=P.col;
+  const o=pageEl(current),n=pageEl(P.id);n.classList.add('pre');
+  if(!reduce&&!window.NOWARM)warm(o,n,P);
+  n.scrollTop=0;
+  await sleep(reduce?0:340);
+  try{await(reduce?fade(o,n):dive(o,n,P))}catch(e){console.warn(e)}
+  finish(o,n,P)}
+function finish(o,n,P){
+  o.classList.remove('active');[o,n,n.querySelector('.pw'),n.querySelector('.wash'),dimEl].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());
+    Object.assign(el.style,{clipPath:'',transform:'',transformOrigin:'',opacity:'',zIndex:'',background:'',willChange:''})});
+  n.querySelectorAll('.r').forEach(r=>r.style.willChange='');
+  n.classList.remove('warm');n.classList.add('active');n.classList.remove('pre');current=P.id;PROJ.left(o,n);DROP.pause(false);
+  ORBS.forEach(x=>{x.shown=false;x.b.getAnimations().forEach(a=>a.cancel());x.b.style.opacity='0';x.b.classList.remove('vis')});
+  [LIGHT.el,orbsBox].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());el.style.transform='';el.style.opacity=''});
+  LIGHT.diveEnd();root.classList.remove('hush');
+  orbsBox.style.visibility='hidden';LIGHT.hide();busy=false;SEL=-1;island.focus({preventScroll:true})}
+/* in-page buttons skip the menu: a short cue on the island's prism, then the dive zooms straight out of it */
+function prismGeo(at){const l=closedLay(),s=at?.7:l.prism.s,cx=at?at[0]:innerWidth/2+l.prism.x,cy=at?at[1]:GEO.top+l.prism.y;
+  return{V:[[0,-40],[34.641,20],[-34.641,20]].map(([x,y])=>[cx+x*s,cy+y*s]),P:[cx,cy],rho:40*s}}
+async function jump(id,at){const i=PAGES.findIndex(p=>p.id===id),P=PAGES[i];if(busy||menuOpen||!P||P.id===current)return;
+  busy=true;SEL=i;const pz=prismGeo(at);                     // measured before the label (and island width) changes
+  LBL=P.name;root.style.setProperty('--accent',P.col);ACCENT=P.col;
+  const o=pageEl(current),n=pageEl(P.id);n.classList.add('pre');
+  if(!reduce&&!window.NOWARM)warm(o,n,P,pz.P);
+  n.scrollTop=0;
+  if(!reduce){if(!at)iprism.animate([{filter:'brightness(1)'},{filter:'brightness(2.6)'}],{duration:110,easing:IN,fill:'forwards',id:'cue'});await sleep(110)}
+  try{await(reduce?fade(o,n):dive(o,n,P,pz))}catch(e){console.warn(e)}
+  finish(o,n,P)}
+/* any [data-go] button: zoom out of the island prism, or out of the button itself (data-from="self") */
+document.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(!b)return;e.stopPropagation();
+  const r=b.getBoundingClientRect(),at=b.dataset.from==='self'?[r.left+r.width/2,r.top+r.height/2]:null;
+  if(HOME.sheetOpen()){HOME.closeSheet(true);at?jump(b.dataset.go,at):jump(b.dataset.go)}else jump(b.dataset.go,at)});
+
+const W=()=>innerWidth,H=()=>innerHeight;
+function bringIn(n){PROJ.prep(n);n.style.zIndex=3;n.classList.add('active')}
+function fade(o,n){LIGHT.off();releaseMenu();collapseIsland();bringIn(n);revealContent(n);return n.animate([{opacity:0},{opacity:1}],{duration:200}).finished.catch(()=>{})}
+const washBg=(P,Z)=>`radial-gradient(circle at ${Z[0]}px ${Z[1]}px,color-mix(in srgb,${P.col} 60%,#fff),color-mix(in srgb,${P.col} 45%,transparent) 45%,transparent 85%)`;
+
+/* Warm-up, while the lamp narrows (the 340 ms before the dive): the new page is rendered and every layer the dive will move
+   is promoted and rasterized now, at the scale it will animate at, with the new page held invisible. The dive's first
+   frames then only move finished textures instead of painting and rasterizing two full-screen pages at once.
+   A held animation (it never leaves its first keyframe) tells the compositor the largest scale coming, so the texture it
+   prepares now is the one it will keep using. */
+const hold=(el,a,b)=>el.animate([{transform:a},{transform:a,offset:.99999},{transform:b}],{duration:1e7,id:'hold'});
+const unhold=el=>el.getAnimations().forEach(a=>{if(a.id==='hold')a.cancel()});
+function warm(o,n,P,Z=GEO.P){const org=`${Z[0]}px ${Z[1]}px`,pw=n.querySelector('.pw'),wash=n.querySelector('.wash');
+  PROJ.prep(n);n.classList.add('warm');Object.assign(n.style,{zIndex:3,opacity:'0',willChange:'opacity'});
+  pw.style.transformOrigin=org;pw.style.willChange='transform';if(!window.NOHOLD)hold(pw,'scale(1.4)','scale(1)');else pw.style.transform='scale(1.4)';
+  wash.style.background=washBg(P,Z);Object.assign(wash.style,{opacity:'.9',willChange:'opacity'});
+  n.querySelectorAll('.r').forEach(r=>r.style.willChange='transform,opacity');
+  o.style.transformOrigin=org;o.style.willChange='transform';if(!window.NOHOLD)hold(o,'scale(1)','scale(1.9)');
+  dimEl.style.willChange='opacity';
+  const cl=closedLay();GLASS.prep(cl.w,cl.h,cl.r)}
+
+/* Prism dive: the light came out of the prism, so you go back in through it.
+   Page motion is transform / opacity (compositor) plus the clip-path portal; the light (fringes riding the portal, beams
+   flying past) is drawn by the light thread from the same scale curve and the portal animation's own start time. */
+function dive(o,n,P,direct){const g=direct||GEO,Z=g.P,dur=direct?900:1060,N=20,org=`${Z[0]}px ${Z[1]}px`;
+  if(direct)root.classList.add('hush');
+  else{/* hand the darkness from the veil straight to the dim layer, so the old page never flashes back up */
+    veil.style.transition='none';LIGHT.off();releaseMenu();root.classList.add('hush');requestAnimationFrame(()=>veil.style.transition='');
+    orbsBox.style.transformOrigin=org;
+    orbsBox.animate([{transform:'scale(1)',opacity:1},{transform:'scale(1.7)',opacity:0}],{duration:600,easing:EASE,fill:'forwards'})}
+  iprism.animate([{opacity:1},{opacity:0}],{duration:80,fill:'forwards',id:'hide'});
+  bringIn(n);n.classList.remove('pre');
+  /* exponential zoom: the triangle's scale s(k) is sampled into keyframes */
+  const dmax=Math.max(...[[0,0],[W(),0],[0,H()],[W(),H()]].map(q=>Math.hypot(q[0]-Z[0],q[1]-Z[1]))),Smax=dmax/(g.rho/2)*1.08;
+  /* direct jumps start from the small prism inside the closed island: ease-out, so the portal clears the island at once */
+  const ez=direct?k=>1-Math.pow(1-k,2.2):k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2,S=Array.from({length:N+1},(_,i)=>Math.exp(Math.log(Smax)*ez(i/N)));
+  const poly=s=>`polygon(${g.V.map(v=>`${(Z[0]+(v[0]-Z[0])*s).toFixed(1)}px ${(Z[1]+(v[1]-Z[1])*s).toFixed(1)}px`).join(',')})`;
+  const clipA=n.animate(S.map((s,i)=>({clipPath:poly(s),offset:i/N})),{duration:dur,easing:'linear',fill:'both'});
+  n.style.opacity='';
+  const pw=n.querySelector('.pw'),wash=n.querySelector('.wash');unhold(pw);pw.style.transform='';pw.style.transformOrigin=org;
+  pw.animate([{transform:'scale(1.4)'},{transform:'scale(1)'}],{duration:dur,easing:OUT,fill:'both'});
+  wash.style.background=washBg(P,Z);
+  wash.animate([{opacity:.9},{opacity:.55,offset:.45},{opacity:0}],{duration:dur*.95,easing:'cubic-bezier(.4,0,.6,1)',fill:'both'});
+  unhold(o);o.style.transformOrigin=org;
+  o.animate([{transform:'scale(1)'},{transform:'scale(1.9)'}],{duration:dur,easing:'cubic-bezier(.55,0,.2,1)',fill:'forwards'});
+  dimEl.animate([{opacity:direct?0:.74},{opacity:direct?.6:.9}],{duration:dur*.7,easing:direct?'cubic-bezier(.3,0,.6,1)':'linear',fill:'forwards'});
+  sleep(60).then(collapseIsland);sleep(dur*.42).then(()=>revealContent(n));
+  /* the light thread follows the portal: same curve, keyed to the moment the portal animation actually started */
+  if(direct)return clipA.finished.catch(()=>{}).then(popPrism);
+  LIGHT.dive({dur,N,S,Z});
+  clipA.ready.then(()=>{if(clipA.startTime!=null)LIGHT.diveStart(TS.k===1?TS.b+(clipA.startTime-TS.p):now()-(clipA.currentTime||0))}).catch(()=>{});
+  return clipA.finished.catch(()=>{}).then(popPrism)}
+function popPrism(){iprism.getAnimations().forEach(a=>{if(a.id==='hide'||a.id==='cue')a.cancel()});iprism.style.opacity='';
+  iprism.animate([{opacity:0,filter:'brightness(3)'},{opacity:1,filter:'brightness(1)'}],{duration:480,easing:OUT})}
+
+
+/* ---------- home: texture, panels, sheet ----------
+   Scroll motion is CSS (scroll-driven, compositor). Script reacts to the pointer, keys and clicks, and runs the small
+   live pieces (signal, clock) only while they are on screen. */
+const HOME=(()=>{const page=$('#pg-home'),sheet=$('#sheet'),shBox=sheet.querySelector('.sh'),shC=sheet.querySelector('.sh-c');
+  const onScreen=(el,f)=>new IntersectionObserver(es=>es.forEach(e=>f(e.isIntersecting))).observe(el);
+
+  /* film grain, drawn once into a small tile */
+  idle(()=>{const m=128,c2=document.createElement('canvas');c2.width=c2.height=m;const g2=c2.getContext('2d'),im2=g2.createImageData(m,m);
+    for(let i=0;i<m*m;i++){const v=Math.random()*255;im2.data.set([v,v,v,255],i*4)}g2.putImageData(im2,0,0);
+    page.querySelector('.hb-grain').style.backgroundImage=`url(${c2.toDataURL()})`});
+
+  /* a soft light that follows the cursor around the page */
+  const light=page.querySelector('.hlight');let lraf=0,lx=0,ly=0;
+  page.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse'||reduce||TIER.t>0)return;lx=e.clientX;ly=e.clientY;light.classList.add('on');if(lraf)return;
+    lraf=requestAnimationFrame(()=>{lraf=0;light.style.transform=`translate(${lx}px,${ly}px)`})});
+  page.addEventListener('pointerleave',()=>light.classList.remove('on'));
+
+  /* photo: red, green and blue copies split apart around the cursor and snap back together */
+  const pt=page.querySelector('.t-photo'),chR=pt.querySelector('.c-r'),chB=pt.querySelector('.c-b');let praf=0;
+  pt.addEventListener('pointermove',e=>{if(reduce||e.pointerType!=='mouse'||praf)return;const ex=e.clientX,ey=e.clientY;
+    praf=requestAnimationFrame(()=>{praf=0;const r=pt.getBoundingClientRect(),x=(ex-r.left)/r.width-.5,y=(ey-r.top)/r.height-.5;
+      chR.style.transform=`translate(${(-x*18).toFixed(1)}px,${(-y*12).toFixed(1)}px)`;chB.style.transform=`translate(${(x*18).toFixed(1)}px,${(y*12).toFixed(1)}px)`})});
+  pt.addEventListener('pointerleave',()=>[chR,chB].forEach(el=>{if(!el.style.transform)return;const f=el.style.transform;el.style.transform='';el.animate([{transform:f},{transform:'none'}],{duration:520,easing:SPRING})}));
+  pt.addEventListener('click',()=>openSheet(pt,'<img src="me.webp" alt="Radu" style="width:100%;border-radius:20px;display:block">',''));
+
+  /* terminal: types a short intro the first time it is seen, then takes commands */
+  const term=page.querySelector('.t-term'),out=term.querySelector('.term-out'),inp=term.querySelector('input');
+  const PAGES_CMD={projects:'projects',record:'record',about:'about',contact:'contact'};
+  const esc=t=>t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const line=(html)=>{out.insertAdjacentHTML('beforeend',html+'\n');while(out.scrollHeight>out.clientHeight&&out.firstChild)out.removeChild(out.firstChild)};
+  const RUN={help:()=>'commands: whoami, skills, projects, record, about, contact, clear',
+    whoami:()=>'radu matei, telecom engineer from Romania',
+    skills:()=>'networking, pentesting, python, c/c++, plc and scada basics',
+    clear:()=>{out.textContent='';return null}};
+  function run(cmd){cmd=cmd.trim().toLowerCase();if(!cmd)return;line(`<span class="k">$</span> <span class="c">${esc(cmd)}</span>`);
+    if(PAGES_CMD[cmd]){line(`opening ${cmd}...`);setTimeout(()=>jump(PAGES_CMD[cmd]),350);return}
+    const f=RUN[cmd];if(!f){line(`${esc(cmd)}: command not found. Type help`);return}const r=f();if(r)line(r)}
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){run(inp.value);inp.value=''}});
+  let typed=false;
+  onScreen(term,v=>{if(!v||typed)return;typed=true;const seq=[['whoami'],['ls projects','datalink-rover  password-helper  ops-city-break'],['help']];
+    if(reduce){seq.forEach(([c,r])=>{line(`<span class="k">$</span> <span class="c">${c}</span>`);line(r||RUN[c]())});return}
+    let q=Promise.resolve();seq.forEach(([c,r])=>{q=q.then(()=>new Promise(res=>{let k=0;const el=document.createElement('span');
+      out.insertAdjacentHTML('beforeend','<span class="k">$</span> ');out.appendChild(el);el.className='c';
+      const t=setInterval(()=>{el.textContent=c.slice(0,++k);if(k>=c.length){clearInterval(t);out.insertAdjacentText('beforeend','\n');setTimeout(()=>{line(r||RUN[c]());setTimeout(res,380)},180)}},55)}))})});
+
+  /* signal: a live sine wave; the pointer sets frequency (x) and amplitude (y) */
+  const sc=page.querySelector('.scope'),sg=sc.getContext('2d'),fEl=page.querySelector('.sread .f'),aEl=page.querySelector('.sread .a');
+  let F=2,A=1,tF=2,tA=1,vis=false,hot=0,sraf=0,ph=0,last=0;
+  function size(){const r=sc.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);sc.width=Math.round(r.width*d);sc.height=Math.round(r.height*d)}
+  function draw(t){sraf=0;const dt=last?Math.min(50,t-last):16;last=t;F+=(tF-F)*.12;A+=(tA-A)*.12;ph+=dt*.004*F;
+    const w=sc.width,h=sc.height;sg.clearRect(0,0,w,h);
+    sg.strokeStyle='rgba(255,255,255,.08)';sg.lineWidth=1;sg.beginPath();for(let i=1;i<6;i++){sg.moveTo(w*i/6,0);sg.lineTo(w*i/6,h)}sg.moveTo(0,h/2);sg.lineTo(w,h/2);sg.stroke();
+    const d=devicePixelRatio>1?1.6:1;sg.beginPath();
+    for(let x=0;x<=w;x+=4){const y=h/2-Math.sin(x/w*Math.PI*2*F-ph)*A*h*.38;x?sg.lineTo(x,y):sg.moveTo(x,y)}
+    sg.strokeStyle='rgba(77,200,255,.22)';sg.lineWidth=7*d;sg.stroke();sg.strokeStyle='#4DC8FF';sg.lineWidth=2*d;sg.stroke();
+    fEl.textContent=F.toFixed(1)+' Hz';aEl.textContent=A.toFixed(1)+' V';
+    if(vis&&!reduce&&(hot||Math.abs(tF-F)>.01||t<hotUntil))sraf=requestAnimationFrame(draw);else last=0}
+  let hotUntil=0;const wake=()=>{if(!sraf)sraf=requestAnimationFrame(draw)};
+  sc.addEventListener('pointermove',e=>{const r=sc.getBoundingClientRect();tF=.5+6*Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+    tA=.2+1.6*(1-Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)));hot=1;wake()});
+  sc.addEventListener('pointerleave',()=>{hot=0;hotUntil=performance.now()+1500;tF=2;tA=1;wake()});
+  onScreen(sc,v=>{vis=v;if(v){size();hotUntil=performance.now()+2500;wake()}});addEventListener('resize',()=>{if(vis){size();wake()}});
+
+  /* clock: Brașov time, ticking once a second while visible */
+  const ck=page.querySelector('.t-clock'),hm=ck.querySelector('.hh-m'),ss=ck.querySelector('.ss');let ct=0;
+  const fmt=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Bucharest',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const tick=()=>{const [h,m,s]=fmt.format(new Date()).split(':');hm.textContent=h+':'+m;ss.textContent=s};
+  onScreen(ck,v=>{clearInterval(ct);if(v){tick();ct=setInterval(tick,1000)}});
+
+  /* breaker: click trips it, then the panel opens with details */
+  const trip=page.querySelector('.t-trip'),kv=trip.querySelector('.kv');
+  const tripIt=()=>{trip.classList.add('open');kv.textContent='TRIP';setTimeout(()=>openSheet(trip,trip.querySelector('template').innerHTML,'#FFE14D'),420)};
+  trip.addEventListener('click',tripIt);trip.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();tripIt()}});
+  /* security: scrambled hex decodes on hover, click opens details */
+  const sec=page.querySelector('.t-sec'),scr=sec.querySelector('.scr');let scrT=0;
+  const scramble=word=>{if(reduce){scr.textContent=word;return}cancelAnimationFrame(scrT);const H='0123456789abcdef',t0=performance.now();
+    (function f(t){const k=Math.min(1,(t-t0)/700),n=Math.floor(k*word.length);
+      scr.textContent=word.slice(0,n)+[...word.slice(n)].map(c=>c===' '?' ':H[Math.random()*16|0]).join('');if(k<1)scrT=requestAnimationFrame(f)})(t0)};
+  sec.addEventListener('pointerenter',()=>scramble('access granted'));sec.addEventListener('pointerleave',()=>scramble('7f3a 9c01 e2b4'));
+  const openSec=()=>openSheet(sec,sec.querySelector('template').innerHTML,'#5CF59A');
+  sec.addEventListener('click',openSec);sec.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSec()}});
+  onScreen(sec,v=>{if(v&&matchMedia('(hover:none)').matches)scramble('access granted')});
+
+  /* sheet: the panel grows out of the tile (FLIP) and shrinks back into it */
+  let src=null;
+  function openSheet(el,html,col){if(busy||menuOpen)return;src=el;shC.innerHTML=html;sheet.hidden=false;shBox.style.setProperty('--cc',col||'#fff');
+    const a=el.getBoundingClientRect(),b=shBox.getBoundingClientRect();
+    if(!reduce){shBox.animate([{transform:`translate(${a.left-b.left}px,${a.top-b.top}px) scale(${a.width/b.width},${a.height/b.height})`,opacity:.6},{transform:'none',opacity:1}],{duration:560,easing:SPRING});
+      shC.animate([{opacity:0},{opacity:0,offset:.3},{opacity:1}],{duration:460});sheet.querySelector('.sh-bg').animate([{opacity:0},{opacity:1}],{duration:300})}
+    shBox.querySelector('.sh-x').focus({preventScroll:true})}
+  function closeSheet(now){if(sheet.hidden)return;const el=src;
+    const done=()=>{sheet.hidden=true;shC.innerHTML='';if(el===trip){trip.classList.remove('open');kv.textContent='6.0 kV'}};
+    if(now||reduce||!el){done();return}
+    const a=el.getBoundingClientRect(),b=shBox.getBoundingClientRect();
+    sheet.querySelector('.sh-bg').animate([{opacity:1},{opacity:0}],{duration:300,fill:'forwards'});
+    shBox.animate([{transform:'none',opacity:1},{transform:`translate(${a.left-b.left}px,${a.top-b.top}px) scale(${a.width/b.width},${a.height/b.height})`,opacity:.4}],{duration:380,easing:EASE,fill:'forwards'})
+      .finished.then(()=>{shBox.getAnimations().forEach(x=>x.cancel());sheet.querySelector('.sh-bg').getAnimations().forEach(x=>x.cancel());done();el.focus&&el.focus({preventScroll:true})})}
+  sheet.querySelector('.sh-bg').addEventListener('click',()=>closeSheet());sheet.querySelector('.sh-x').addEventListener('click',()=>closeSheet());
+  addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
+
+  /* refraction maps for the glass panels (Chromium; full and balanced tiers), rebuilt when sizes change */
+  function refract(){[...page.querySelectorAll('.tile,.hud')].forEach(el=>{const w=el.offsetWidth,h=el.offsetHeight;if(!w||!h)return;
+    GLASS.set(el,w,h,Math.min(26,parseFloat(getComputedStyle(el).borderTopLeftRadius)||20),1,50)})}
+  return{refract:()=>idle(refract),sheetOpen:()=>!sheet.hidden,closeSheet}})();
+
+/* ---------- back button: a drop that leaves the island, and joins it again ----------
+   While it moves, the island and the drop are one shape: a metaball outline (island pill + neck + drop) drawn as the
+   clip of a small glass layer, recomputed each frame (a few hundred px, so it costs next to nothing). When the drop has
+   settled the real button takes its place, with the same glass. */
+const DROP=(()=>{const back=$('#back'),drop=$('#drop'),rims=[...drop.querySelectorAll('path')],GAP=10,BR=23,PAD=16;
+  let state='off',raf=0,tok=0,paused=false;
+  const f=n=>n.toFixed(1),PI=Math.PI;
+  function shape(L,Rr,cy,r1,c2,r2,v){
+    const c1=L+r1,d=c1-c2,pill=`M${f(c1)},${f(cy-r1)}H${f(Rr-r1)}A${r1},${r1} 0 0 1 ${f(Rr-r1)},${f(cy+r1)}H${f(c1)}A${r1},${r1} 0 0 1 ${f(c1)},${f(cy-r1)}Z`;
+    if(r2<.5||d+r2<=r1+.01)return pill;
+    const circ=`M${f(c2+r2)},${f(cy)}A${f(r2)},${f(r2)} 0 1 1 ${f(c2-r2)},${f(cy)}A${f(r2)},${f(r2)} 0 1 1 ${f(c2+r2)},${f(cy)}Z`;
+    if(d<r1+r2)v=Math.max(v,.5*clamp((r1+r2-d)/6));        // overlapping shapes always share one outline
+    if(v<.004)return pill+circ;
+    const u1=d<r1+r2?Math.acos(clamp((r1*r1+d*d-r2*r2)/(2*r1*d),-1,1)):0,u2=d<r1+r2?Math.acos(clamp((r2*r2+d*d-r1*r1)/(2*r2*d),-1,1)):0,
+      ms=Math.acos(clamp((r1-r2)/d,-1,1)),a1=PI+u1+(ms-u1)*v,a2=PI-u1-(ms-u1)*v,a3=2*PI-u2-(PI-u2-ms)*v,a4=u2+(PI-u2-ms)*v;
+    const P=(cx,r,a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)],p1=P(c1,r1,a1),p2=P(c1,r1,a2),p3=P(c2,r2,a3),p4=P(c2,r2,a4);
+    const d2=Math.min(v*2.4,Math.hypot(p1[0]-p3[0],p1[1]-p3[1])/(r1+r2))*Math.min(1,d*2/(r1+r2)),h1=r1*d2,h2=r2*d2;
+    const H=(p,h,a)=>`${f(p[0]+h*Math.cos(a))},${f(p[1]+h*Math.sin(a))}`,large=a3-a4>PI?1:0;
+    return `M${f(p1[0])},${f(p1[1])}A${r1},${r1} 0 0 1 ${f(c1)},${f(cy-r1)}H${f(Rr-r1)}A${r1},${r1} 0 0 1 ${f(Rr-r1)},${f(cy+r1)}H${f(c1)}`+
+      `A${r1},${r1} 0 0 1 ${f(p2[0])},${f(p2[1])}C${H(p2,h1,a2+PI/2)} ${H(p4,h2,a4-PI/2)} ${f(p4[0])},${f(p4[1])}`+
+      `A${f(r2)},${f(r2)} 0 ${large} 1 ${f(p3[0])},${f(p3[1])}C${H(p3,h2,a3+PI/2)} ${H(p1,h1,a1-PI/2)} ${f(p1[0])},${f(p1[1])}Z`}
+  /* draw one frame: dist = how far the drop's centre is from the island's left cap centre */
+  function draw(dist,r2,v){const r=island.getBoundingClientRect(),r1=r.height/2,cy=r1+PAD,c1=r.left+r1,c2=c1-dist;
+    const x0=Math.floor(Math.min(r.left,c2-r2)-6),w=Math.ceil(r.right+6-x0),h=Math.ceil(r.height+2*PAD);
+    drop.classList.toggle('lite',GLASS.ok&&TIER.t<=1);drop.style.cssText=`display:block;left:${x0}px;top:${r.top-PAD}px;width:${w}px;height:${h}px;`+
+      `background:linear-gradient(180deg,rgba(255,255,255,.14) ${PAD}px,rgba(255,255,255,.04) ${PAD+r.height*.55}px,rgba(255,255,255,.08) ${PAD+r.height}px)`;
+    if(TIER.t>=2)drop.style.background='rgba(18,20,28,.86)';
+    const d=shape(r.left-x0,r.right-x0,cy,r1,c2-x0,Math.min(r2,r1),v);drop.style.clipPath=`path('${d}')`;rims.forEach(p=>p.setAttribute('d',d))}
+  const finalLeft=()=>innerWidth/2-closedLay().w/2-GAP-2*BR;
+  function place(){if(state!=='on')return;back.getAnimations().forEach(a=>{if(a.id==='fw')a.cancel()});back.style.left=finalLeft()+'px'}
+  /* the button keeps the same gap to the island: when the island's width changes it moves on the island's own spring */
+  function follow(w,D,E,delay=0){if(state!=='on')return;const to=innerWidth/2-w/2-GAP-2*BR,cur=(parseFloat(back.style.left)||to)+(parseFloat(getComputedStyle(back).translate)||0);
+    back.getAnimations().forEach(a=>{if(a.id==='fw')a.cancel()});back.style.left=to+'px';
+    if(D&&!reduce&&Math.abs(cur-to)>.5)back.animate([{translate:`${(cur-to).toFixed(1)}px 0`},{translate:'0 0'}],{duration:D,delay,easing:E,fill:'backwards',id:'fw'})}
+  onIslandW=follow;
+  function settle(on){cancelAnimationFrame(raf);raf=0;drop.style.cssText='';island.classList.remove('melt');back.getAnimations().forEach(x=>x.cancel());
+    if(on){back.hidden=false;place();back.style.opacity=paused?'0':'';back.style.pointerEvents=paused?'none':'';
+      GLASS.set(back,46,46,23,1,50)}else{back.hidden=true;GLASS.clear(back)}}
+  /* spring for the drop's travel: overshoots a little, as liquid pulled by surface tension does */
+  const spring=(t,z=.52,fr=1.55)=>{const w=fr*2*PI,wd=w*Math.sqrt(1-z*z);return 1-Math.exp(-z*w*t)*(Math.cos(wd*t)+z*w/wd*Math.sin(wd*t))};
+  function show(){if(state==='on'||state==='out')return;const my=++tok;state='out';
+    if(reduce){settle(true);back.animate([{opacity:0},{opacity:1}],{duration:200});return}
+    island.classList.add('melt');back.hidden=true;const t0=now(),D=900,DIST=BR*2+GAP;let snapped=false;
+    (function step(){if(my!==tok)return;const t=(now()-t0)/1000,k=t*1000/D;
+      const dist=DIST*spring(t),r2=BR*(.3+.7*sstep(0,.42,k)),v=.5*(1-sstep(.2,.4,k));
+      if(!snapped&&k>.4){snapped=true;island.animate([{scale:'1 1'},{scale:'1.025 .965'},{scale:'1 1'}],{duration:420,easing:'cubic-bezier(.3,.7,.3,1)'})}
+      draw(dist,r2,v);
+      if(k<1)raf=requestAnimationFrame(step);else{state='on';settle(true);
+        back.querySelector('svg').animate([{opacity:0,transform:'translateX(5px) scale(.6)'},{opacity:1,transform:'none'}],{duration:460,easing:SPRING})}})()}
+  function hide(instant){if(state==='off'||state==='in')return;const my=++tok;
+    if(instant||reduce||paused){state='off';settle(false);return}
+    state='in';back.hidden=true;GLASS.clear(back);island.classList.add('melt');const t0=now(),D=560,DIST=BR*2+GAP;
+    (function step(){if(my!==tok)return;const k=clamp((now()-t0)/D),e=k<.4?1.5625*k*k*1.6:1-Math.pow(1-k,2)*(1-.4)/(.36);
+      draw(DIST*(1-e),BR*(1-.65*sstep(.55,1,k)),.5*sstep(.2,.45,k));
+      if(k<1)raf=requestAnimationFrame(step);else{state='off';settle(false);
+        island.animate([{scale:'1 1'},{scale:'1.03 .97'},{scale:'1 1'}],{duration:380,easing:'cubic-bezier(.3,.7,.3,1)'})}})()}
+  /* the menu opens over the button: tuck it away until the menu closes */
+  function pause(p){paused=p;if(state!=='on')return;back.style.pointerEvents=p?'none':'';
+    back.animate([{opacity:getComputedStyle(back).opacity},{opacity:p?0:1}],{duration:p?160:320,fill:'forwards',easing:EASE}).finished.then(a=>{if(!paused)back.getAnimations().forEach(x=>x.cancel());back.style.opacity=paused?'0':''},()=>{})}
+  back.addEventListener('click',()=>DL.back());
+  /* the button says where it goes; a small hop when that changes */
+  function tip(t){back.querySelector('.tip').textContent=t;back.setAttribute('aria-label','Back to '+t)}
+  function hop(){if(state==='on'&&!reduce)back.animate([{scale:'1'},{scale:'.86'},{scale:'1'}],{duration:420,easing:'cubic-bezier(.3,.7,.3,1)'})}
+  addEventListener('resize',place);
+  return{show,hide,pause,place,tip,hop,get state(){return state}}})();
+
+/* ---------- projects: the cards, and the one 3D canvas (it lives in the rover card until the project opens) ---------- */
+const PROJ=(()=>{const pp=$('#pg-projects'),dl=$('#pg-dl'),card=$('#pj-rover'),cslot=$('#rv-slot-card'),dslot=$('#dl-slot');
+  const seen=new Map(),D=()=>window.DL3D&&DL3D.ok?DL3D:null;
+  /* the 3D view draws only while its slot is on screen on a visible page (and not under the menu on lighter tiers) */
+  function vis(){const d=D();if(!d||!d.canvas)return;const s=d.canvas.parentNode,pg=s&&s.closest&&s.closest('.page');
+    d.setVis(!!(pg&&(pg.classList.contains('active')||pg.classList.contains('warm'))&&(s===dslot||seen.get(s)))&&!(menuOpen&&TIER.t>=1))}
+  const io=new IntersectionObserver(es=>{es.forEach(e=>seen.set(e.target,e.isIntersecting));vis()});io.observe(cslot);io.observe(dslot);
+  [pp,dl].forEach(p=>new MutationObserver(vis).observe(p,{attributes:true,attributeFilter:['class']}));
+  function load(){if(!window.DL3D)return;DL3D.init(TIER.t).then(ok=>{if(!ok)return;card.classList.add('rv-ready');
+    if(current==='dl'){DL3D.mount(dslot);DL3D.go(DL.mode,{dur:0})}else{DL3D.mount(cslot);DL3D.go('card',{dur:0})}vis()})}
+  TIER.on(t=>{const d=D();if(d)d.setTier(t)});
+  /* the projects page is about to be shown some other way (menu): put the model back in its card */
+  function prep(n){const d=D();if(!d)return;if(n===pp&&d.canvas.parentNode!==cslot){d.mount(cslot);d.release();d.go('card',{dur:0})}}
+  /* cards lean toward the pointer and a soft light follows it */
+  document.querySelectorAll('.pj').forEach(el=>{const sh=el.querySelector('.sheen');let rf=0,ex=0,ey=0;
+    el.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse'||reduce||busy)return;ex=e.clientX;ey=e.clientY;if(rf)return;
+      rf=requestAnimationFrame(()=>{rf=0;const r=el.getBoundingClientRect(),x=(ex-r.left)/r.width-.5,y=(ey-r.top)/r.height-.5,big=el===card;
+        el.classList.add('tilt');el.style.transform=`rotateX(${(-y*(big?2.4:5)).toFixed(2)}deg) rotateY(${(x*(big?3:6)).toFixed(2)}deg)`;
+        if(sh)sh.style.transform=`translate(${(ex-r.left).toFixed(0)}px,${(ey-r.top).toFixed(0)}px)`;
+        if(big){const d=D();if(d)d.cardHover(true,x*2,y*2)}})});
+    el.addEventListener('pointerleave',()=>{el.classList.remove('tilt');el.style.transform='';if(el===card){const d=D();if(d)d.cardHover(false)}})});
+  card.addEventListener('focus',()=>{const d=D();if(d&&card.matches(':focus-visible'))d.cardHover(true)});card.addEventListener('blur',()=>{const d=D();if(d)d.cardHover(false)});
+  card.addEventListener('click',()=>DL.enter());
+  function left(o,n){if(o===dl)DL.reset()}
+  return{load,prep,left,vis}})();
+
+/* ---------- the link diagram: the real system, step by step ----------
+   Two glass panels show what is inside the controller and the rover; the two roads between them are the Wi-Fi and the fibre.
+   Each step of the story lights the parts it talks about, rewrites their small status line, and sends packets along the
+   paths they really take: commands (cyan), telemetry (amber), video (violet). It is laid out in its own units and scaled as
+   one piece to fit the free space, and it animates only while it is on screen. */
+const NETD=(()=>{const root=$('#dl-net'),box=root.querySelector('.net-in'),svg=box.querySelector('svg'),eg=svg.querySelector('.ed'),pg=svg.querySelector('.pu'),
+    nn=box.querySelector('.nn'),key=box.querySelector('.net-key'),pans=[...box.querySelectorAll('.np')],page=$('#pg-dl');
+  const NS='http://www.w3.org/2000/svg',C='#4DE1FF',A='#FFB347',V='#A98BFF',G='#5CF59A',R='#FF7A8C',GR={[C]:'pkC',[A]:'pkA',[V]:'pkV'};
+  /* title, status line, kind (1 = a computer, 2 = a link) */
+  const N={sticks:['Joysticks','4 analog axes'],adc:['ADS1015','12-bit · I²C'],pic:['Raspberry Pi 5','controller · 4 GB',1],scr:['7″ screen','800 × 480'],
+    wifi:['Wi-Fi','2.4 GHz · ch 6',2],fibre:['Fibre','1310 / 1550 nm',2],
+    cams:['2 × IMX219','cameras'],tof:['5 × VL53L0X','distance'],pir:['Raspberry Pi 5','rover · 8 GB',1],nano:['Arduino Nano','USB serial'],motors:['DRV8833','track motors'],servo:['MG90S','camera pan']};
+  /* where everything sits: panels, chips [x, y, w, h], the legend, and the side each connection leaves and enters by
+     (l r t b, with an optional offset along that side) */
+  const LAY={
+    wide:{W:800,H:410,pan:[[0,0,252,310],[504,0,296,404]],key:[378,362],
+      at:{sticks:[14,46,104,56],adc:[134,46,104,56],pic:[14,140,224,62],scr:[14,240,224,56],wifi:[303,56,150,46],fibre:[303,240,150,46],
+        cams:[518,46,126,56],tof:[660,46,126,56],pir:[518,140,268,62],nano:[518,240,268,56],motors:[518,334,126,56],servo:[660,334,126,56]},
+      ed:{e1:['r','l'],e2:['b','t+.27'],es:['b','t'],w:['r-.25','l','r','l-.25'],f:['r+.25','l','r','l+.25'],ec:['b','t-.26'],et:['b','t+.26'],en:['b','t'],em:['b-.26','t'],ev:['b+.26','t']}},
+    tall:{W:360,H:440,pan:[[0,0,360,166],[0,246,360,166]],key:[180,428],
+      at:{sticks:[12,34,100,46],adc:[128,34,104,46],scr:[248,34,100,46],pic:[110,106,140,50],wifi:[16,186,130,40],fibre:[214,186,130,40],
+        cams:[12,280,92,50],pir:[116,280,128,50],tof:[256,280,92,50],motors:[12,356,92,46],nano:[116,356,128,46],servo:[256,356,92,46]},
+      ed:{e1:['r','l'],e2:['b','t'],es:['r','b'],w:['b-.3','t','b','t-.3'],f:['b+.3','t','b','t+.3'],ec:['r','l'],et:['l','r'],en:['b','t'],em:['l','r'],ev:['r','l']}}};
+  const E=[['e1','sticks','adc'],['e2','adc','pic'],['es','pic','scr'],['w','pic','pir','wifi'],['f','pic','pir','fibre'],['ec','cams','pir'],['et','tof','pir'],['en','pir','nano'],['em','nano','motors'],['ev','nano','servo']];
+  /* the steps: lit parts, lit connections, status lines [text, colour], and what flows: [connection, colour, direction, speed, options] */
+  const S=[
+    {on:['sticks','adc'],ed:['e1','e2'],st:{sticks:['x .42 · y .80',C]},fl:[['e1',C,1,1.2],['e2',C,1,1.2]]},
+    {on:['adc','pic'],ed:['e2'],st:{pic:['calibrate → pack',C]},fl:[['e2',C,1,1.2]]},
+    {on:['pic','wifi','fibre','pir'],ed:['w','f'],st:{wifi:['UDP · 20 Hz',C],fibre:['UDP · 20 Hz',C]},fl:[['w',C,1,1],['f',C,1,1]]},
+    {on:['wifi','fibre','pir'],ed:['w','f'],st:{pir:['first copy ✓',G]},fl:[['w',C,1,1],['f',C,1,1,{late:.1,drop:1}]]},
+    {on:['tof','pir','nano','motors','servo'],ed:['et','en','em','ev'],st:{tof:['nearest 412 mm',A],nano:['M 182 -64',C],motors:['L 182 · R −64',C],servo:['S 90',C]},
+      fl:[['et',A,1,1.1],['en',C,1,1.3],['em',C,1,1.3],['ev',C,1,1.1]]},
+    {on:['cams','tof','pir','wifi','fibre','pic','scr'],ed:['ec','et','w','f','es'],st:{cams:['1080p30 MJPEG',V],wifi:['video · data',V],fibre:['data · 10 Hz',A],scr:['video + HUD',V]},
+      fl:[['ec',V,1,1.4],['et',A,1,1],['w',A,-1,.9],['f',A,-1,.9],['w',V,-1,1.4,{ph:.5}],['es',V,1,1.4],['es',A,1,1,{ph:.5}]]},
+    {on:['pic','wifi','fibre','pir'],ed:['w','f'],jam:1}];
+  let built=false,lay=null,paths={},boxes={},step=-9,phase=-1,raf=0,vis=false,last=0,clock=0,dots=[],skip=0;
+  function build(){built=true;
+    for(const [id,v] of Object.entries(N)){const d=document.createElement('div');d.className='nd'+(v[2]===1?' big':v[2]===2?' lane':'');
+      d.innerHTML='<b></b><i></i>';d.querySelector('b').textContent=v[0];d.querySelector('i').textContent=v[1];nn.appendChild(d);boxes[id]=d}
+    for(const e of E){const p=document.createElementNS(NS,'path');if(e[0]==='w')p.classList.add('radio');eg.appendChild(p);paths[e[0]]=p}}
+  /* a side of a box: point, and the direction pointing out of the box */
+  function side(b,s){const o=s.length>1?parseFloat(s.slice(1)):0,[x,y,w,h]=b;
+    return s[0]==='l'?[x,y+h/2+o*h,-1,0]:s[0]==='r'?[x+w,y+h/2+o*h,1,0]:s[0]==='t'?[x+w/2+o*w,y,0,-1]:[x+w/2+o*w,y+h,0,1]}
+  const r1=v=>Math.round(v*10)/10;
+  function curve(a,b){const dx=Math.abs(b[0]-a[0]),dy=Math.abs(b[1]-a[1]),ka=Math.max(6,(a[2]?dx:dy)*.5),kb=Math.max(6,(b[2]?dx:dy)*.5);
+    return `C${r1(a[0]+a[2]*ka)} ${r1(a[1]+a[3]*ka)} ${r1(b[0]+b[2]*kb)} ${r1(b[1]+b[3]*kb)} ${r1(b[0])} ${r1(b[1])}`}
+  function layout(){if(!built)build();const r=root.getBoundingClientRect();if(!r.width||!r.height)return;
+    const tall=innerWidth<=760||innerWidth/innerHeight<.9;let L=LAY[tall?'tall':'wide'],left=0;
+    /* on wide screens, keep clear of the story cards on the left */
+    if(!tall){const sc=page.querySelector('.dl-story[data-for=link] .seg[data-type=step] .sc');if(sc){const cr=sc.getBoundingClientRect();left=Math.max(0,cr.right+28-r.left)}}
+    const aw=r.width-left,ah=r.height,s=Math.min(aw/L.W,ah/L.H,1.3),key2=L.W+'|'+s.toFixed(4)+'|'+left;
+    box.style.transform=`translate(${(left/2).toFixed(1)}px,0) translate(-50%,-50%) scale(${s.toFixed(4)})`;
+    if(lay===L&&box._k===key2)return;lay=L;box._k=key2;root.classList.toggle('tall',tall);
+    box.style.width=L.W+'px';box.style.height=L.H+'px';svg.setAttribute('width',L.W);svg.setAttribute('height',L.H);svg.setAttribute('viewBox',`0 0 ${L.W} ${L.H}`);
+    pans.forEach((p,i)=>{const [x,y,w,h]=L.pan[i];Object.assign(p.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px'})});
+    for(const [id,d] of Object.entries(boxes)){const [x,y,w,h]=L.at[id];Object.assign(d.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px'})}
+    for(const [id,a,b,via] of E){const sd=L.ed[id];let d;
+      if(via){const A0=side(L.at[a],sd[0]),M0=side(L.at[via],sd[1]),M1=side(L.at[via],sd[2]),B0=side(L.at[b],sd[3]);
+        d=`M${r1(A0[0])} ${r1(A0[1])} ${curve(A0,M0)} L${r1(M1[0])} ${r1(M1[1])} ${curve(M1,B0)}`}
+      else{const A0=side(L.at[a],sd[0]),B0=side(L.at[b],sd[1]);d=`M${r1(A0[0])} ${r1(A0[1])} ${curve(A0,B0)}`}
+      paths[id].setAttribute('d',d);paths[id]._len=paths[id].getTotalLength()}
+    key.style.left=L.key[0]+'px';key.style.top=L.key[1]+'px'}
+  /* status lines: a short cross-fade when one changes */
+  function status(id,txt,col,quiet){const i=boxes[id].querySelector('i'),t=txt||N[id][1];
+    if(i.textContent!==t){i.textContent=t;if(!reduce&&!quiet)i.animate([{opacity:0,filter:'blur(3px)'},{opacity:1,filter:'blur(0)'}],{duration:320,easing:'cubic-bezier(.2,.7,.2,1)'})}
+    i.classList.toggle('hot',!!col);if(col)i.style.setProperty('--hc',col)}
+  function flows(list){dots.forEach(d=>d.el.remove());dots=[];
+    for(const [e,col,dir,rate,o={}] of list){const n=paths[e]._len<60?2:3;
+      for(let i=0;i<n;i++){const c=document.createElementNS(NS,'circle');c.setAttribute('r',lay===LAY.tall?8.5:8);c.setAttribute('fill',`url(#${GR[col]})`);c.setAttribute('opacity','0');pg.appendChild(c);
+        dots.push({el:c,e,dir,rate,ph:i/n+(o.ph||0)+(o.late||0),o})}}}
+  function setStep(k){if(k===step)return;step=k;phase=-1;const st=S[k];root.classList.toggle('ov',!st);
+    for(const [id,d] of Object.entries(boxes)){d.classList.toggle('on',!!st&&st.on.includes(id));d.classList.remove('bad');status(id,st&&st.st&&st.st[id]?st.st[id][0]:'',st&&st.st&&st.st[id]?st.st[id][1]:'')}
+    for(const [id,p] of Object.entries(paths)){p.classList.toggle('on',!!st&&st.ed.includes(id));p.classList.remove('jam')}
+    if(!st)flows([['w',C,1,.7],['f',C,1,.7],['w',A,-1,.5,{ph:.5}],['f',A,-1,.5,{ph:.5}]]);else if(!st.jam)flows(st.fl);
+    kick()}
+  /* the jam: the radio goes quiet, 1.5 s later the controller is on the fibre (driven by the scroll, so it can be replayed) */
+  function jam(t){const sil=clamp((t-.12)/.38)*1.5,ph=t<.12?0:sil<1.5?1:2;
+    if(ph===0)status('pic','on Wi-Fi',C);else if(ph===1)status('pic',`Wi-Fi silent ${sil.toFixed(1)} s`,A,phase===1);
+    if(ph===phase)return;phase=ph;
+    boxes.wifi.classList.toggle('bad',ph>0);boxes.wifi.classList.toggle('on',ph===0);paths.w.classList.toggle('jam',ph>0);paths.w.classList.toggle('on',ph===0);
+    boxes.scr.classList.toggle('on',ph!==1);paths.es.classList.toggle('on',ph!==1);
+    status('wifi',ph>0?'jammed':'2.4 GHz · ch 6',ph>0?R:'');status('fibre',ph===2?'everything':'commands · data',ph===2?G:C);
+    status('scr',ph===1?'no video':'video ✓',ph===1?R:ph===2?G:V);
+    if(ph===2)status('pic','switched to fibre ✓',G);
+    flows(ph===0?[['w',C,1,1],['f',C,1,1],['w',V,-1,1.4,{ph:.5}],['f',A,-1,.9,{ph:.3}],['es',V,1,1.4]]
+      :ph===1?[['w',C,1,1,{cut:1}],['f',C,1,1],['f',A,-1,.9,{ph:.3}]]
+      :[['w',C,1,1,{cut:1}],['f',C,1,1],['f',A,-1,.9,{ph:.3}],['f',V,-1,1.4,{ph:.6}],['es',V,1,1.4]])}
+  function frame(ts){raf=0;if(!vis)return;
+    if(TIER.t>=1&&(skip^=1)){raf=requestAnimationFrame(frame);return}          // about 30 fps on the lighter tiers
+    const dt=last?Math.min(.05,(ts-last)/1000):0;last=ts;clock+=dt;
+    for(const d of dots){const p=paths[d.e];if(!p||!p._len)continue;let u=(clock*.36*d.rate*(120/Math.max(120,p._len))**.35+d.ph)%1;if(d.dir<0)u=1-u;
+      const q=p.getPointAtLength(u*p._len),f=d.dir<0?1-u:u;let o=Math.min(1,Math.sin(f*Math.PI)*1.7);
+      if(d.o.cut)o*=1-sstep(.36,.5,f);                                      // jammed: lost half way
+      if(d.o.drop)o*=1-sstep(.72,.9,f);                                     // the late twin, dropped on arrival
+      d.el.setAttribute('cx',q.x.toFixed(1));d.el.setAttribute('cy',q.y.toFixed(1));d.el.setAttribute('opacity',o.toFixed(2))}
+    raf=requestAnimationFrame(frame)}
+  function kick(){if(vis&&!raf){last=0;raf=requestAnimationFrame(frame)}}
+  /* called on every scroll of the link story */
+  function update(w){const st=w.type==='step',show=st||(w.type==='hero'&&w.t>.7);
+    root.classList.toggle('show',show);vis=show&&!reduce;if(!show)return;layout();
+    setStep(st?w.k:-1);if(st&&w.k===6)jam(w.t);kick()}
+  function hide(){root.classList.remove('show');vis=false}
+  addEventListener('resize',()=>{if(root.classList.contains('show'))layout()});
+  return{update,hide}})();
+
+/* ---------- DataLink Rover: the pick screen, the three stories, and the way back ----------
+   Levels: Projects -> DataLink (pick the controller, the link or the rover) -> one story.
+   The back button (and Esc) always goes one level up: from a story to the pick screen, from the pick screen to Projects. */
+const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),cslot=$('#rv-slot-card'),slot=$('#dl-slot'),sel=$('#dl-sel'),tags=$('#dl-tags'),hud=$('#dl-hud');
+  const picks=[...sel.querySelectorAll('.pick')],selT=sel.querySelector('.sel-t'),NAME={rover:'Rover',remote:'Controller',link:'Link'};
+  const OPEN=mkSpring(.92,1.0),SHUT=mkSpring(.96,1.3),EIO='cubic-bezier(.65,0,.35,1)';
+  let mode='select',segs=[],sh=innerHeight,saved=0,hot=null,tagKey='',tagEls=[];
+  const D=()=>window.DL3D&&DL3D.ok?DL3D:null,pad2=n=>String(n).padStart(2,'0');
+  /* faint terrain lines behind the rover, drawn once */
+  idle(()=>{const c=document.createElement('canvas');c.width=1400;c.height=900;const g=c.getContext('2d');g.strokeStyle='rgba(255,176,120,.26)';g.lineWidth=1.3;
+    for(let i=1;i<27;i++){const r=i*33;g.beginPath();for(let a=0;a<=360;a+=3){const t=a*Math.PI/180,w=r*(1+.1*Math.sin(3*t+i*.3)+.06*Math.sin(5*t-i*.5)+.035*Math.sin(9*t+i));
+      const x=700+Math.cos(t)*w*1.4,y=560+Math.sin(t)*w*.6;a?g.lineTo(x,y):g.moveTo(x,y)}g.closePath();g.stroke()}
+    page.style.setProperty('--topo',`url(${c.toDataURL('image/webp',.8)})`)});
+  function setSh(){sh=page.clientHeight||innerHeight;page.style.setProperty('--sh',sh+'px');layout()}
+  function layout(){segs=[];if(mode==='select')return;let y=0;
+    page.querySelector(`.dl-story[data-for="${mode}"]`).querySelectorAll('.seg').forEach(el=>{const h=Math.round((+el.dataset.len||1)*sh);el.style.height=h+'px';
+      segs.push({el,type:el.dataset.type,k:+(el.dataset.k||0),top:y,h});y+=h})}
+  addEventListener('resize',()=>{clearTimeout(page._rz);page._rz=setTimeout(()=>{if(current==='dl'){setSh();onScroll()}},120)});
+  function setMode(m){mode=m;page.dataset.mode=m;page.dataset.bg=m;layout();buildTags();if(m!=='link')NETD.hide()}
+  /* where the story is, measured at the middle of the screen */
+  function where(){const y=page.scrollTop+sh/2;for(const s of segs)if(y<s.top+s.h)return{type:s.type,k:s.k,t:clamp((y-s.top)/s.h),seg:s};return{type:'after',k:0,t:1,seg:null}}
+  let W0=null;
+  function onScroll(){if(mode==='select'||!segs.length)return;const w=where();W0=w;const d=D();if(d)d.story({type:w.type,k:w.k,t:w.t});ui(w);if(mode==='link')NETD.update(w)}
+  page.addEventListener('scroll',onScroll,{passive:true});
+  function ui(w){const isPart=w.type==='part'||w.type==='step',n=mode==='link'?7:8;
+    hud.classList.toggle('on',isPart&&w.t>.12&&w.t<.94);
+    if(isPart){hud.querySelector('.hn').textContent=`${pad2(w.k+1)} / ${pad2(n)}`;hud.querySelector('.hb i').style.transform=`scaleX(${((w.k+w.t)/n).toFixed(3)})`;
+      hud.querySelector('.ht').textContent=w.seg.el.querySelector('h3').textContent}
+    hud.style.setProperty('--tc',mode==='rover'?'#FF9F43':mode==='remote'?'#6E9BFF':'#4DE1FF');
+    const showParts=mode!=='link'&&((w.type==='explode'&&w.t>.55)||(w.type==='part'&&w.k===0&&w.t<.1));
+    tags.classList.toggle('on',showParts)}
+  /* labels: one per part on the taken-apart model */
+  function buildTags(){tags.textContent='';tagEls=[];
+    const col=mode==='rover'?'#FF9F43':mode==='remote'?'#6E9BFF':'#4DE1FF';
+    if(mode==='rover'||mode==='remote'){const d=D(),keys=d?d.stops(mode):[],names=[...page.querySelectorAll(`.dl-story[data-for="${mode}"] .seg[data-type=part] h3`)].map(h=>h.textContent);
+      keys.forEach((k,i)=>add(`${mode}:${k}`,names[i]||k));tagKey=mode}
+    else tagKey='';
+    function add(anchor,txt,small){const el=document.createElement('span');el.className='tag'+(small?' small':'');el.style.setProperty('--tc',col);el.innerHTML='<i></i><b></b>';el.querySelector('b').textContent=txt;tags.appendChild(el);tagEls.push({el,anchor})}}
+  /* every frame the camera moves: keep the pick areas and labels on their objects */
+  function place(){const d=D();if(!d||(current!=='dl'&&!busy))return;const [w,h]=d.size;
+    if(mode==='select'){picks.forEach(b=>{const k=b.dataset.pick,a=d.anchor(k);if(!a)return;
+        let bw,bh,x,y;if(k==='link'){const nar=w<560;bw=nar?132:Math.min(300,w*.3);bh=nar?74:130;x=a.x-bw/2;y=nar?a.y-bh/2-4:a.y+16}   // under the arc's crown
+        else{const top=d.anchor(k+'Top')||{y:a.y-260};bh=Math.max(140,a.y-top.y+96);bw=Math.max(200,Math.min(w*.42,bh*1.15));x=a.x-bw/2;y=top.y-24}
+        x=clamp(x,6,w-bw-6);b.style.width=bw+'px';b.style.height=bh+'px';b.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`})}
+    if(tags.classList.contains('on'))tagEls.forEach(t=>{const a=d.anchor(t.anchor);if(!a||!a.ok){t.el.style.opacity='0';return}t.el.style.opacity='';
+      const lw=t.w||(t.w=t.el.offsetWidth||120);let right=a.x>w*.5;if(right&&a.x+lw+20>w)right=false;else if(!right&&a.x-lw-20<0)right=true;const dx=right?14:-14;t.el.classList.toggle('r',!right);
+      t.el.style.transform=`translate(${(a.x+(right?-4:4)).toFixed(1)}px,${(a.y-12).toFixed(1)}px) translateX(${right?0:-100}%) translateX(${dx}px)`})}
+  /* the pick screen: hover, focus and arrow keys pick an object, Enter or a click opens it */
+  function setHot(k){hot=k;picks.forEach(b=>b.classList.toggle('hot',b.dataset.pick===k));sel.classList.toggle('has-hot',!!k);const d=D();if(d)d.hover(k)}
+  picks.forEach(b=>{const k=b.dataset.pick;b.addEventListener('pointerenter',()=>setHot(k));b.addEventListener('pointerleave',()=>{if(hot===k&&document.activeElement!==b)setHot(null)});
+    b.addEventListener('focus',()=>setHot(k));b.addEventListener('blur',()=>{if(hot===k)setHot(null)});b.addEventListener('click',()=>pick(k))});
+  page.querySelectorAll('[data-dl]').forEach(b=>b.addEventListener('click',()=>b.dataset.dl==='select'?unpick():pick(b.dataset.dl)));
+  addEventListener('keydown',e=>{if(current!=='dl'||menuOpen||busy)return;
+    if(e.key==='Escape'){e.preventDefault();back();return}
+    if(mode==='select'&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){const order=[...picks].sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left);
+      let i=order.findIndex(b=>b.dataset.pick===hot);i=i<0?(e.key==='ArrowRight'?0:order.length-1):(i+(e.key==='ArrowRight'?1:-1)+order.length)%order.length;order[i].focus({preventScroll:true});e.preventDefault()}});
+  const later=(ms,f)=>sleep(ms).then(f);
+  const fadeIn=(els,delay,dur=520)=>els.forEach((el,i)=>el.animate([{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'none'}],{duration:dur,delay:delay+i*60,easing:SOFT,fill:'backwards'}));
+
+  /* Projects card -> pick screen: the page grows out of the card, the rover keeps spinning while the camera pulls back,
+     the controller and the link appear next to it */
+  async function enter(){if(busy||menuOpen||current!=='projects')return;busy=true;
+    const o=pp,n=page,Dur=reduce?1:1000,pw=n.querySelector('.pw'),cT=card.querySelector('.pj-t');saved=o.scrollTop;
+    const cr=card.getBoundingClientRect(),cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect();
+    card.classList.remove('tilt');card.style.transform='';const d=D();if(d)d.cardHover(false);
+    n.style.opacity='0';n.style.zIndex=3;n.scrollTop=0;setMode('select');n.classList.add('warm');setSh();setHot(null);
+    const tf=selT.getBoundingClientRect(),fs=parseFloat(getComputedStyle(cT).fontSize)/parseFloat(getComputedStyle(selT).fontSize);
+    LBL='DataLink Rover';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});DROP.tip('Projects');later(reduce?0:260,()=>{if(current==='dl'||busy)DROP.show()});
+    if(d){d.mount(slot);d.keep(Dur*1.5);d.go('select',{dur:reduce?0:Dur*1.25,from:d.cardPose(cs),ease:k=>1-Math.pow(1-k,3)})}
+    if(reduce){n.classList.add('active');n.classList.remove('warm');n.style.opacity='';n.style.zIndex='';o.classList.remove('active');current='dl';busy=false;PROJ.vis();return}
+    const skin=document.createElement('div');skin.className='skin';pw.appendChild(skin);
+    const full={top:0,left:0,right:innerWidth,bottom:innerHeight},ins=(r,rad)=>`inset(${r.top.toFixed(1)}px ${(innerWidth-r.right).toFixed(1)}px ${(innerHeight-r.bottom).toFixed(1)}px ${r.left.toFixed(1)}px round ${rad}px)`;
+    const clip=n.animate([{clipPath:ins(cr,30)},{clipPath:ins(full,0)}],{duration:Dur,easing:OPEN,fill:'both'});
+    n.style.opacity='';n.animate([{opacity:0},{opacity:1}],{duration:150,easing:'linear',fill:'backwards'});
+    skin.animate([{opacity:1},{opacity:0,offset:.5},{opacity:0}],{duration:Dur,fill:'both'});later(140,()=>{if(current==='dl'||busy)cT.style.visibility='hidden'});
+    selT.animate([{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${fs.toFixed(4)})`},{transform:'none'}],{duration:Dur,easing:OPEN,fill:'both'});
+    fadeIn([sel.querySelector('.sel-k'),sel.querySelector('.sel-s'),...picks.map(b=>b.querySelector('.pk-l')),sel.querySelector('.sel-help')],Dur*.5);
+    o.style.transformOrigin='50% 50%';o.animate([{transform:'none'},{transform:'scale(.93)'}],{duration:Dur,easing:OUT,fill:'forwards'});
+    dimEl.animate([{opacity:0},{opacity:.55}],{duration:Dur*.8,easing:'linear',fill:'forwards'});
+    await clip.finished.catch(()=>{});
+    [o,n,selT,dimEl].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());Object.assign(el.style,{transform:'',transformOrigin:'',clipPath:'',zIndex:''})});
+    skin.remove();o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='dl';busy=false;PROJ.vis()}
+
+  /* pick screen (or a story) -> Projects: everything settles back into the card */
+  async function leave(){if(busy||menuOpen||current!=='dl')return;busy=true;
+    const o=page,n=pp,Dur=reduce?1:820,pw=o.querySelector('.pw'),cT=card.querySelector('.pj-t'),fromSel=mode==='select';
+    DROP.hide();LBL='Projects';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});setHot(null);tags.classList.remove('on');hud.classList.remove('on');
+    n.style.zIndex=1;n.classList.add('warm');n.scrollTop=saved;o.style.zIndex=3;
+    if(reduce){o.classList.remove('active');n.classList.add('active');n.classList.remove('warm');n.style.zIndex=o.style.zIndex='';current='projects';reset();PROJ.prep(n);busy=false;return}
+    const cr=card.getBoundingClientRect(),cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect(),tf=selT.getBoundingClientRect();
+    const fs=parseFloat(getComputedStyle(cT).fontSize)/parseFloat(getComputedStyle(selT).fontSize);
+    card.style.opacity='0';const d=D();
+    if(d){d.keep(Dur*1.4);d.go('card',{dur:Dur*1.05,goal:d.cardPose(cs),ease:k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2})}
+    const skin=document.createElement('div');skin.className='skin';Object.assign(skin.style,{top:o.scrollTop+'px',bottom:'auto',height:innerHeight+'px'});pw.appendChild(skin);
+    const full={top:0,left:0,right:innerWidth,bottom:innerHeight},ins=(r,rad)=>`inset(${r.top.toFixed(1)}px ${(innerWidth-r.right).toFixed(1)}px ${(innerHeight-r.bottom).toFixed(1)}px ${r.left.toFixed(1)}px round ${rad}px)`;
+    const clip=o.animate([{clipPath:ins(full,0)},{clipPath:ins(cr,30)}],{duration:Dur,easing:SHUT,fill:'both'});
+    skin.animate([{opacity:0},{opacity:0,offset:.15},{opacity:1,offset:.7},{opacity:1}],{duration:Dur,fill:'both'});
+    const fade=[...sel.querySelectorAll('.sel-k,.sel-s,.pk-l,.sel-help'),...o.querySelectorAll('.dl-story,.dl-ttl,.dl-cue')];
+    fade.forEach(el=>el.animate([{opacity:getComputedStyle(el).opacity},{opacity:0}],{duration:200,fill:'forwards'}));
+    if(fromSel)selT.animate([{transform:'none'},{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${fs.toFixed(4)})`}],{duration:Dur,easing:SHUT,fill:'both'});
+    else selT.animate([{opacity:0},{opacity:0}],{duration:Dur,fill:'both'});
+    n.style.transformOrigin='50% 50%';n.animate([{transform:'scale(.93)'},{transform:'none'}],{duration:Dur,easing:OUT,fill:'both'});
+    dimEl.animate([{opacity:.55},{opacity:0}],{duration:Dur*.8,easing:'linear',fill:'both'});
+    later(Dur*.78,()=>{card.style.opacity='';cT.style.visibility='';o.animate([{opacity:1},{opacity:0}],{duration:Dur*.22,easing:'linear',fill:'forwards'})});
+    await clip.finished.catch(()=>{});
+    if(d){d.mount(cslot);d.release();d.go('card',{dur:0})}
+    [o,n,selT,dimEl].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());Object.assign(el.style,{transform:'',transformOrigin:'',clipPath:'',zIndex:'',opacity:''})});
+    fade.forEach(el=>el.getAnimations().forEach(a=>a.cancel()));
+    skin.remove();o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='projects';reset();busy=false;PROJ.vis();card.focus({preventScroll:true,focusVisible:false})}
+
+  /* pick screen -> a story (or story -> another story): the others fall back and fade, the one you picked takes the screen */
+  async function pick(which){if(busy||menuOpen||current!=='dl'||which===mode||!NAME[which])return;busy=true;
+    const Dur=reduce?1:1150,prev=mode,st=page.querySelector(`.dl-story[data-for="${which}"]`);setHot(null);tags.classList.remove('on');hud.classList.remove('on');
+    if(prev!=='select'){const old=page.querySelector(`.dl-story[data-for="${prev}"]`);
+      await old.animate([{opacity:1},{opacity:0}],{duration:reduce?1:220,fill:'forwards'}).finished.catch(()=>{});old.getAnimations().forEach(a=>a.cancel())}
+    setMode(which);page.scrollTop=0;
+    if(!reduce)st.animate([{opacity:0},{opacity:0,offset:.5},{opacity:1}],{duration:Dur,easing:'linear'});
+    LBL=NAME[which];setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});DROP.tip('DataLink Rover');DROP.hop();
+    const d=D();if(d){d.keep(Dur+300);d.story({type:'hero',k:0,t:0});await d.go(which,{dur:reduce?0:Dur})}else await sleep(Dur);
+    busy=false;onScroll()}
+  /* a story -> the pick screen */
+  async function unpick(){if(busy||menuOpen||current!=='dl'||mode==='select')return;busy=true;
+    const Dur=reduce?1:1050,st=page.querySelector(`.dl-story[data-for="${mode}"]`);tags.classList.remove('on');hud.classList.remove('on');
+    LBL='DataLink Rover';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});DROP.tip('Projects');DROP.hop();
+    const d=D();if(d)d.keep(Dur+300);const done=d?d.go('select',{dur:reduce?0:Dur}):sleep(Dur);
+    await st.animate([{opacity:1},{opacity:0}],{duration:reduce?1:220,fill:'forwards'}).finished.catch(()=>{});
+    setMode('select');page.scrollTop=0;st.getAnimations().forEach(a=>a.cancel());
+    if(!reduce)fadeIn([...picks.map(b=>b.querySelector('.pk-l'))],Dur*.35);
+    await done;busy=false}
+  function back(){if(mode==='select')leave();else unpick()}
+  /* left by the menu: start from the pick screen next time */
+  function reset(){setMode('select');page.scrollTop=0;setHot(null);card.style.opacity='';card.querySelector('.pj-t').style.visibility='';pp.style.transform='';DROP.hide()}
+  if(window.DL3D)DL3D.onFrame(place);
+  return{enter,leave,pick,unpick,back,reset,get mode(){return mode},get level(){return current!=='dl'?0:mode==='select'?1:2}}})();
+
+/* ---------- boot ---------- */
+/* glass that bends what is behind it: project cards and the details sheet, and on the full tier the story cards over the 3D model */
+document.querySelectorAll('.pj.lq').forEach(el=>LQ.watch(el,{tier:1,sc:46,blur:3}));
+document.querySelectorAll('.sc.lq').forEach(el=>LQ.watch(el,{tier:0,sc:42,blur:10,sat:1.6}));
+LQ.watch($('.sh'),{tier:1,sc:50,blur:6});
+layout();LIGHT.start();LIGHT.setGeo();LIGHT.resize();layKey=innerWidth+'x'+innerHeight+'@'+(devicePixelRatio||1);
+TIER.on(()=>LIGHT.resize());
+islandTo(closedLay(),{dur:0});
+orbsBox.style.visibility='hidden';
+revealContent(pageEl('home'));
+if(document.fonts)document.fonts.ready.then(()=>{if(!menuOpen&&!busy)islandTo(closedLay(),{dur:0});prepGlass();HOME.refract();PROJ.load()});else{prepGlass();HOME.refract();PROJ.load()}
+TIER.on(()=>HOME.refract());addEventListener('resize',()=>{clearTimeout(window._hr);window._hr=setTimeout(()=>HOME.refract(),300)});
+TIER.on(()=>{if(!menuOpen&&!busy)islandTo(closedLay(),{dur:0})});
+window.__dbg={GEO,OPT,LIGHT,PAGES,TIER,EM,PROJ,DROP,get current(){return current},get busy(){return busy}};window.__lightSync=()=>LIGHT.sync();
+</script>
+
+</body></html>
