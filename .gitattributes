@@ -1,0 +1,13 @@
+# Store text files with LF line endings, whatever the operating system
+* text=auto
+
+# Binary files
+*.webp binary
+*.jpg binary
+*.png binary
+*.ttf binary
+*.npz binary
+
+# The packed 3D models are generated data (tools/build_models.py writes them):
+# no line-by-line diffs, and left out of GitHub's language statistics
+site/assets/models/*.js -diff linguist-generated

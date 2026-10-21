@@ -1,0 +1,28 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Secrets: keys and passwords go in a .env file, which never leaves your computer.
+# Commit a .env.example with dummy values instead, so others know which settings exist.
+.env
+.env.*
+!.env.example
+
+# 3D model build: intermediate and output folders (the finished models are copied to site/assets/models)
+tools/work/
+tools/build/
+
+# CAD sources stay on your computer; the meshes the build needs are in tools/cad
+*.step
+*.stp
+*.f3d
+*.f3z
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

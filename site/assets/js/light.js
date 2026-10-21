@@ -1,4 +1,4 @@
-/* Prism Light: light renderer.
+/* Background light renderer.
    The same file runs in two places. As a Web Worker it draws into an OffscreenCanvas, so the light is produced on its own
    thread and keeps its frame rate even when the page's main thread is busy. Loaded as a normal script it only defines
    PrismLightEngine, which the page uses on the main thread when workers or OffscreenCanvas are unavailable. */

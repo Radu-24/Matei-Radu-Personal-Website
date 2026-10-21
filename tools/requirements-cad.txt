@@ -1,0 +1,5 @@
+# Extra packages for re-exporting the CAD meshes in tools/cad from the STEP files
+# (export_remote_cad.py and remesh.py). The normal model build does not need them.
+-r requirements.txt
+cadquery-ocp==8.0.1.1.0
+mapbox_earcut==2.1.0

@@ -1,0 +1,16 @@
+# Packages for tools/build_models.py (the 3D model build). Needs Python 3.12 or newer (numpy and scipy require it).
+# Tested with Python 3.13 on Linux. Each of these installs from a ready-made wheel on 64-bit Linux and Windows
+# and on Apple-silicon Macs.
+numpy==2.5.3
+scipy==1.18.1
+trimesh==5.1.1
+manifold3d==3.5.4
+embreex==4.4.0
+fast_simplification==0.2.0
+triangle==20250106
+pillow==12.3.0
+
+# Install meshoptimizer separately, after these:  pip install --pre meshoptimizer==0.2.30a0
+# It orders the triangles so the packed files stay small. It is a pre-release that pip compiles from source, so it needs
+# a C++ compiler (see tools/README.md). Without it the model files come out about twice as large, and build_models.py
+# stops unless you pass --without-meshoptimizer.

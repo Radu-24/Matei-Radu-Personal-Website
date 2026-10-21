@@ -1,10 +1,10 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Prism Light</title>
+<title>Radu Matei</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Prism Light v3: Dynamic Island prism menu + Prism dive transition.
+/* Radu Matei, personal site: Dynamic Island prism menu + Prism dive transition.
    Performance rules: nothing full-screen is blurred or filtered; page motion uses only transform / opacity / clip-path;
    the light is drawn on its own thread (Worker + OffscreenCanvas) as small GPU quads, only while it moves; orb and lamp
    lighting are precomputed keyframes the compositor plays; everything the dive moves is rasterized before it starts. */
@@ -76,6 +76,11 @@ button{font:inherit;color:inherit}
 .pre .r{opacity:0}
 .p-home{--pc:#FF5A6A}.p-projects{--pc:#FF9F43}.p-record{--pc:#FFE14D}.p-about{--pc:#5CF59A}.p-contact{--pc:#4DC8FF}
 #dim{position:absolute;inset:0;z-index:2;background:#000;opacity:0;pointer-events:none}
+/* while the project card zooms into its page (and back), the 3D view rides in its own full-screen layer above both pages,
+   so the rover never fades, jumps or changes size mid-flight */
+#dl-fly{position:absolute;inset:0;z-index:4;pointer-events:none;display:none}
+#dl-fly.on{display:block}
+#dl-fly canvas{display:block;width:100%;height:100%}
 
 /* frosted top/bottom edges (static, small radius); plain fades on low tiers */
 .edge{position:fixed;left:0;right:0;height:96px;z-index:20;pointer-events:none;transition:opacity .35s;
@@ -83,6 +88,7 @@ button{font:inherit;color:inherit}
 .edge.t{top:0;-webkit-mask:linear-gradient(#000 35%,transparent);mask:linear-gradient(#000 35%,transparent)}
 .edge.b{bottom:0;-webkit-mask:linear-gradient(transparent,#000 65%);mask:linear-gradient(transparent,#000 65%)}
 .hush .edge{opacity:0;transition:opacity .15s}
+.dl-staged .edge.b{opacity:0}
 .t2 .edge{-webkit-backdrop-filter:none;backdrop-filter:none;background:linear-gradient(rgba(5,6,11,.55),transparent)}
 .t2 .edge.b{background:linear-gradient(transparent,rgba(5,6,11,.55))}
 
@@ -222,7 +228,7 @@ button.tile{cursor:pointer}
 .t-intro .proof{margin:14px 0 0;color:#C9CEDA;font-size:17px;max-width:46ch}
 .t-intro .row{margin-top:22px}
 .t-photo{grid-column:span 3;grid-row:span 2;padding:0;min-height:0;isolation:isolate;background:#000}
-.ch{position:absolute;inset:-4%;display:block;background-image:url(me.webp);background-size:cover;background-position:50% 22%;mix-blend-mode:screen;background-blend-mode:multiply;will-change:transform}
+.ch{position:absolute;inset:-4%;display:block;background-image:url(assets/img/me.webp);background-size:cover;background-position:50% 22%;mix-blend-mode:screen;background-blend-mode:multiply;will-change:transform}
 .c-r{background-color:#f00}.c-g{background-color:#0f0}.c-b{background-color:#00f}
 
 .t-term{grid-column:span 5;grid-row:span 2;display:flex;flex-direction:column;padding:0;font-family:var(--mono);font-size:13.5px;line-height:1.6}
@@ -506,12 +512,14 @@ button.pj{cursor:pointer}
 /* labels on the taken-apart model */
 .dl-tags{position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .35s}
 .dl-tags.on{opacity:1}
-.tag{position:absolute;left:0;top:0;display:flex;align-items:center;gap:8px;white-space:nowrap;font-size:13px;font-weight:600;color:#E8EBF2;will-change:transform}
-.tag i{width:7px;height:7px;border-radius:50%;background:var(--tc,#fff);box-shadow:0 0 10px var(--tc,#fff);flex:none}
-.tag b{font-weight:600;padding:5px 10px;border-radius:999px;background:radial-gradient(120% 160% at 28% -20%,rgba(255,255,255,.16),transparent 60%),rgba(12,14,20,.62);
+.tag{position:absolute;left:0;top:0;white-space:nowrap;font-size:13px;font-weight:600;color:#E8EBF2;will-change:transform}
+.tag i{position:absolute;left:0;top:0;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;background:var(--tc,#fff);box-shadow:0 0 10px var(--tc,#fff)}
+.tag i::after{content:'';position:absolute;left:3.5px;top:3px;width:var(--ll,0px);height:1px;background:var(--tc,#fff);opacity:.5;transform-origin:0 50%;transform:rotate(var(--la,0rad))}
+.tag b{display:block;font-weight:600;padding:5px 10px;border-radius:999px;background:radial-gradient(120% 160% at 28% -20%,rgba(255,255,255,.16),transparent 60%),rgba(12,14,20,.62);
   box-shadow:inset 1px 1px 0 rgba(255,255,255,.5),inset -1px -1px 0 rgba(255,255,255,.14),inset 0 0 0 1px rgba(255,255,255,.05)}
-.tag.r{flex-direction:row-reverse}
 .tag.small b{font-size:12px;padding:4px 9px}
+.nw{white-space:nowrap}
+@media (max-width:560px){.tag b{font-size:12px;padding:4px 9px}}
 /* progress for the parts */
 .dl-hud{position:absolute;left:max(24px,4vw);bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:4;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12.5px;color:#AEB4C4;
   opacity:0;transform:translateY(8px);transition:opacity .35s,transform .45s var(--spring);pointer-events:none}
@@ -526,13 +534,18 @@ button.pj{cursor:pointer}
 /* the stories */
 .dl-story{position:relative;z-index:5;margin-top:calc(var(--sh,100vh)*-1);display:none}
 .p-dl[data-mode=rover] .dl-story[data-for=rover],.p-dl[data-mode=remote] .dl-story[data-for=remote],.p-dl[data-mode=link] .dl-story[data-for=link]{display:block}
-.seg{position:relative;display:flex;align-items:center;padding:0 max(24px,6vw);pointer-events:none}
-.seg.mid{justify-content:center}
-.sc{pointer-events:auto;width:min(400px,100%);padding:26px 26px 22px;border-radius:26px;
-  background:var(--lq-fill),rgba(12,14,22,.56);box-shadow:var(--lq-depth),0 24px 60px rgba(0,0,0,.42)}
-.sc.bd{-webkit-backdrop-filter:blur(14px) saturate(1.6);backdrop-filter:blur(14px) saturate(1.6)}
+.seg{position:relative;pointer-events:none}
+/* The story cards do not scroll with the page: they live in one layer of the stage, and each one snaps into its place
+   (left and centred on wide screens, centred low for the big moments, just above the progress line on phones) while its
+   part of the story is on screen. The model underneath keeps following the scroll continuously. */
+.dl-cards{position:absolute;inset:0;z-index:5;pointer-events:none}
+.sc{position:absolute;left:max(24px,6vw);top:50%;transform:translateY(-50%);width:min(400px,calc(100% - 48px));padding:26px 26px 22px;border-radius:26px;
+  visibility:hidden;opacity:0;pointer-events:none;background:var(--lq-fill),rgba(10,12,20,.44);box-shadow:var(--lq-depth),0 24px 60px rgba(0,0,0,.42)}
+.sc.on{visibility:visible;opacity:1;pointer-events:auto}
+.sc.mid{left:50%;top:auto;bottom:max(64px,9vh);transform:translateX(-50%);text-align:center;width:min(440px,calc(100% - 48px))}
+.sc.bd{-webkit-backdrop-filter:blur(5px) saturate(1.7) brightness(1.04);backdrop-filter:blur(5px) saturate(1.7) brightness(1.04)}
 .t2 .sc{background:var(--lq-fill),rgba(16,18,28,.93)}
-.seg.mid .sc{transform:translateY(calc(var(--sh,100vh)*.3));text-align:center;width:min(440px,100%)}
+.sc[data-story=rover]{--tc:#FF9F43}.sc[data-story=remote]{--tc:#6E9BFF}.sc[data-story=link]{--tc:#4DE1FF}
 .sc .n{display:block;font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;color:var(--tc);margin-bottom:10px}
 .sc h3{margin:0 0 10px;font-size:clamp(24px,2.4vw,30px);letter-spacing:-.03em;line-height:1.05}
 .sc p{margin:0;color:#C2C7D4;font-size:16px}
@@ -540,8 +553,7 @@ button.pj{cursor:pointer}
 .todo{font-size:13.5px!important;color:#8C92A6!important;padding:8px 12px;border-radius:12px;border:1px dashed rgba(255,255,255,.18)}
 .dl-story[data-for=rover]{--tc:#FF9F43}.dl-story[data-for=remote]{--tc:#6E9BFF}.dl-story[data-for=link]{--tc:#4DE1FF}
 /* phones and portrait screens: the model (or the diagram) on top, the card resting just above the progress line */
-@media (max-width:760px),(max-aspect-ratio:9/10){.seg{align-items:center;justify-content:center}
-  .seg:not(.mid) .sc{transform:translateY(calc(var(--sh,100vh)*.5 - 50% - 74px - env(safe-area-inset-bottom,0px)))}.seg.mid .sc{transform:translateY(calc(var(--sh,100vh)*.3))}}
+@media (max-width:760px),(max-aspect-ratio:9/10){.sc,.sc.mid{left:16px;right:16px;width:auto;top:auto;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:none;padding:22px 22px 18px}}
 /* after the 3D story: code, video, photos */
 .after{position:relative;padding:12vh max(24px,6vw) 18vh;max-width:1100px;margin:0 auto}
 .after h2{margin:16vh 0 22px;font-size:clamp(30px,4.4vw,52px);letter-spacing:-.04em;line-height:1}
@@ -587,6 +599,9 @@ button.pj{cursor:pointer}
 .p-dl[data-mode=link] .net.show{opacity:1;visibility:visible;transition:opacity .7s cubic-bezier(.2,.7,.2,1)}
 .net-in{position:absolute;left:50%;top:50%;transform-origin:50% 50%}
 .net-in svg{position:absolute;left:0;top:0;overflow:visible}
+/* a soft light that glides over the part of the system the story is talking about; it follows the scroll continuously */
+.net-spot{position:absolute;left:0;top:0;width:480px;height:480px;margin:-240px 0 0 -240px;border-radius:50%;pointer-events:none;opacity:0;
+  background:radial-gradient(closest-side,rgba(77,225,255,.17),rgba(77,225,255,.06) 52%,transparent);will-change:transform,opacity}
 .net .ed path{fill:none;stroke:rgba(150,190,230,.16);stroke-width:1.5;stroke-linecap:round;transition:stroke .5s,stroke-width .5s}
 .net .ed path.on{stroke:rgba(120,228,255,.5);stroke-width:2}
 .net .ed path.radio{stroke-dasharray:.01 6.5;stroke-width:2.6}
@@ -801,16 +816,17 @@ button.pj{cursor:pointer}
       <div class="dl-bg" aria-hidden="true"><i class="b-sel"></i><i class="b-rover"></i><i class="b-remote"></i><i class="b-link"></i></div>
       <div class="dl-ttl" aria-hidden="true"><span data-for="rover">Rover</span><span data-for="remote">Controller</span><span data-for="link">Link</span></div>
       <div class="dl-slot" id="dl-slot"></div>
-      <div class="net" id="dl-net" aria-hidden="true"><div class="net-in"><div class="np lq"><span>Controller</span></div><div class="np lq"><span>Rover</span></div>
+      <div class="net" id="dl-net" aria-hidden="true"><div class="net-in"><i class="net-spot"></i><div class="np lq"><span>Controller</span></div><div class="np lq"><span>Rover</span></div>
         <svg><defs><radialGradient id="pkC"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#4DE1FF"/><stop offset="1" stop-color="#4DE1FF" stop-opacity="0"/></radialGradient>
           <radialGradient id="pkA"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#FFB347"/><stop offset="1" stop-color="#FFB347" stop-opacity="0"/></radialGradient>
           <radialGradient id="pkV"><stop offset="0" stop-color="#fff"/><stop offset=".28" stop-color="#A98BFF"/><stop offset="1" stop-color="#A98BFF" stop-opacity="0"/></radialGradient></defs><g class="ed"></g><g class="pu"></g></svg>
         <div class="nn"></div>
         <div class="net-key"><span><i style="background:#4DE1FF"></i>command</span><span><i style="background:#FFB347"></i>telemetry</span><span><i style="background:#A98BFF"></i>video</span></div></div></div>
       <div class="dl-tags" id="dl-tags" aria-hidden="true"></div>
+      <div class="dl-cards" id="dl-cards"></div>
       <div class="dl-sel" id="dl-sel">
         <header class="sel-hd"><p class="sel-k">Bachelor's thesis · 2026 · graded 9.00</p><h1 class="sel-t">DataLink<br>Rover</h1><p class="sel-s">Pick a part to explore.</p></header>
-        <button class="pick" data-pick="remote" style="--c:#6E9BFF"><span class="pk-l"><span class="pk-n">Controller</span><span class="pk-bar"></span><span class="pk-s">Pi 5, a 7-inch screen and two joysticks</span><span class="pk-go">Explore</span></span></button>
+        <button class="pick" data-pick="remote" style="--c:#6E9BFF"><span class="pk-l"><span class="pk-n">Controller</span><span class="pk-bar"></span><span class="pk-s">Pi 5, a <span class="nw">7-inch</span> screen and two joysticks</span><span class="pk-go">Explore</span></span></button>
         <button class="pick" data-pick="link" style="--c:#4DE1FF"><span class="pk-l"><span class="pk-n">Link</span><span class="pk-bar"></span><span class="pk-s">How a command reaches the rover, twice</span><span class="pk-go">Explore</span></span></button>
         <button class="pick" data-pick="rover" style="--c:#FF9F43"><span class="pk-l"><span class="pk-n">Rover</span><span class="pk-bar"></span><span class="pk-s">T101 tracks, two cameras, a fibre backup</span><span class="pk-go">Explore</span></span></button>
         <p class="sel-help">← → to choose · Enter to open</p>
@@ -820,15 +836,15 @@ button.pj{cursor:pointer}
     </div>
     <div class="dl-story" data-for="rover">
       <section class="seg" data-type="hero" data-len="1.1"></section>
-      <section class="seg mid" data-type="explode" data-len="1.4"><div class="sc lq bd"><h3>Taken apart</h3><p>Eight parts, each built to its real size from my photos and the thesis. Keep scrolling to go through them.</p></div></section>
-      <section class="seg" data-type="part" data-k="0" data-len="1.25"><article class="sc lq bd"><span class="n">01 / 08</span><h3>Tracks and motors</h3><p>A T101 aluminium tank kit with ABS plastic tracks. Each track has its own 12&nbsp;V gear motor, fed straight from the 7.4&nbsp;V pack.</p><p>No steering: one track runs faster than the other, so the rover turns on the spot.</p><p class="kv"><span>left = y + x</span><span>right = y − x</span></p></article></section>
-      <section class="seg" data-type="part" data-k="1" data-len="1.25"><article class="sc lq bd"><span class="n">02 / 08</span><h3>Frame and plate</h3><p>The T101 is a bent aluminium frame that carries the motors and the wheels.</p><p>Everything else sits on my 3D printed plate. Its tabs at the front and back hold the distance sensors.</p></article></section>
+      <section class="seg mid" data-type="explode" data-len="1.4"><div class="sc lq bd"><h3>Taken apart</h3><p>Eight parts, each built to its real size from my CAD, my photos and the thesis. Keep scrolling to go through them.</p></div></section>
+      <section class="seg" data-type="part" data-k="0" data-len="1.25"><article class="sc lq bd"><span class="n">01 / 08</span><h3>Tracks and motors</h3><p>A T101 aluminium tank kit with ABS plastic tracks. Each track has its own <span class="nw">33GB-520</span> gear motor, 12&nbsp;V and 320&nbsp;rpm, fed straight from the 7.4&nbsp;V pack.</p><p>No steering: one track runs faster than the other, so the rover turns on the spot.</p><p class="kv"><span>left = y + x</span><span>right = y − x</span></p></article></section>
+      <section class="seg" data-type="part" data-k="1" data-len="1.25"><article class="sc lq bd"><span class="n">02 / 08</span><h3>Frame and plate</h3><p>The T101 is one bent aluminium sheet: a slotted deck between the tracks, its sides bent down to carry the wheels. The motors hang under the deck.</p><p>My 3D printed chassis sits right on top of it: the battery box stands on the deck and the electronics plate rests on the box. Pins on the plate's front and corner tabs hold the five distance sensors.</p></article></section>
       <section class="seg" data-type="part" data-k="2" data-len="1.25"><article class="sc lq bd"><span class="n">03 / 08</span><h3>Raspberry Pi 5, 8&nbsp;GB</h3><p>The rover's computer. It runs two services that start on boot: <code>rover.py</code> takes the commands, reads the sensors and drives, and <code>camera_stream.py</code> streams both cameras.</p><p>The extra memory is for the self-docking model I want to run on it next.</p></article></section>
-      <section class="seg" data-type="part" data-k="3" data-len="1.25"><article class="sc lq bd"><span class="n">04 / 08</span><h3>Arduino Nano and DRV8833</h3><p>Linux can't promise timing, so a Nano does the real-time part. The Pi sends it short text lines over USB at 115200 baud.</p><p class="kv"><span>M 182 -64</span><span>S 90</span></p><p>The DRV8833 H-bridge switches battery power to the motors. If the lines stop for half a second, the Nano stops the motors on its own.</p></article></section>
+      <section class="seg" data-type="part" data-k="3" data-len="1.25"><article class="sc lq bd"><span class="n">04 / 08</span><h3>Arduino Nano and DRV8833</h3><p>Linux can't promise timing, so a Nano does the real-time part. The Pi sends it short text lines over USB at 115200 baud.</p><p class="kv"><span>M 182 -64</span><span>S 90</span></p><p>The DRV8833 <span class="nw">H-bridge</span> is glued to the front of the battery box, with a 1000&nbsp;µF capacitor on its supply that catches the dips when the motors start. It switches battery power to the motors, and if the lines stop for half a second, the Nano stops them on its own.</p></article></section>
       <section class="seg" data-type="part" data-k="4" data-len="1.25"><article class="sc lq bd"><span class="n">05 / 08</span><h3>Distance sensors</h3><p>Five VL53L0X laser time-of-flight sensors, three at the front and two at the back. They all have the same I²C address, so a TCA9548A switches them on one at a time.</p><p>Under 400&nbsp;mm the rover slows down, and at 120&nbsp;mm it stops. Turning stays free, so it can always get out.</p></article></section>
-      <section class="seg" data-type="part" data-k="5" data-len="1.25"><article class="sc lq bd"><span class="n">06 / 08</span><h3>Two cameras</h3><p>Two Waveshare IMX219 cameras, 8&nbsp;MP with a 120° lens, each streaming 1920&nbsp;×&nbsp;1080 at 30&nbsp;fps.</p><p>The front one is the driving view. The other sits on a mast and turns on an MG90S servo that the right stick controls. The riser and the camera mount are parts I designed.</p></article></section>
-      <section class="seg" data-type="part" data-k="6" data-len="1.25"><article class="sc lq bd"><span class="n">07 / 08</span><h3>Power</h3><p>Four Samsung 21700 cells in 2S2P: 7.2&nbsp;V, 10&nbsp;Ah, about 72&nbsp;Wh, roughly four hours of driving.</p><p>A 2S BMS protects them and a 6&nbsp;A switch cuts everything. An XL4015 makes 5.1&nbsp;V for the Pi, while the motors run straight from the pack. An INA219 measures the battery.</p></article></section>
-      <section class="seg" data-type="part" data-k="7" data-len="1.25"><article class="sc lq bd"><span class="n">08 / 08</span><h3>Fibre link</h3><p>The backup path. A media converter turns the Pi's Ethernet into light on a single strand of single-mode fibre: 1310&nbsp;nm one way, 1550&nbsp;nm the other, up to 3&nbsp;km.</p><p>Light in glass can't be jammed by radio.</p></article></section>
+      <section class="seg" data-type="part" data-k="5" data-len="1.25"><article class="sc lq bd"><span class="n">06 / 08</span><h3>Two cameras</h3><p>Two Waveshare IMX219 cameras, 8&nbsp;MP with a 120° lens, each streaming 1920&nbsp;×&nbsp;1080 at 30&nbsp;fps.</p><p>The front one is the driving view. The other sits on a mast and turns on an MG90S servo that the right stick controls. The tower and the camera mount are parts I designed.</p></article></section>
+      <section class="seg" data-type="part" data-k="6" data-len="1.25"><article class="sc lq bd"><span class="n">07 / 08</span><h3>Power</h3><p>Four Samsung 21700 cells in 2S2P: 7.2&nbsp;V, 10&nbsp;Ah, about 72&nbsp;Wh, roughly four hours of driving. Two double holders slide into the battery box from the Pi's side. There's no power switch: to turn it off, I pull the holders out.</p><p>A 2S BMS protects the cells and a <span class="nw">USB-C</span> module under the Nano shield charges them. Under the plate, an XL4015 makes 5.1&nbsp;V for the Pi; a second one on top makes 3.3&nbsp;V for the fibre converter. The motors run straight off the pack, and an INA219 measures the battery.</p></article></section>
+      <section class="seg" data-type="part" data-k="7" data-len="1.25"><article class="sc lq bd"><span class="n">08 / 08</span><h3>Fibre link</h3><p>The backup path. A media converter turns the Pi's Ethernet into light on a single strand of single-mode fibre: 1310&nbsp;nm one way, 1550&nbsp;nm the other, up to 3&nbsp;km.</p><p>The converter has its own 3.3&nbsp;V supply, so the backup path doesn't depend on the Pi's. And light in glass can't be jammed by radio.</p></article></section>
       <section class="seg" data-type="rebuild" data-len="1.1"></section>
       <section class="seg mid" data-type="action" data-len="1.9"><div class="sc lq bd"><h3>Ready to go</h3><p>On power-up the camera runs the servo check from <code>rover.py</code>: full left, full right, centre. Then it drives off.</p></div></section>
       <section class="after">
@@ -862,8 +878,8 @@ nano.<span class="f">send</span>(<span class="s">f'M {int(l * 255 * TRIM_L)} {in
 }</pre></div>
         <h2>Photos</h2>
         <div class="gal">
-          <figure class="ph lq"><img src="ph-rover-side.webp" alt="The rover's printed plate on the T101 chassis with the Pi 5, the Nano, the buck converter, the servo mast and the fibre converter" loading="lazy" width="854" height="698"><figcaption>The electronics plate on the T101, from the front.</figcaption></figure>
-          <figure class="ph lq"><img src="ph-rover-top.webp" alt="The rover's plate seen from above" loading="lazy" width="638" height="580"><figcaption>From above: Pi 5, Nano, XL4015, TCA9548A and the fibre converter.</figcaption></figure>
+          <figure class="ph lq"><img src="assets/img/rover-side.webp" alt="The rover's printed plate on the T101 chassis with the Pi 5, the Nano, the buck converter, the servo mast and the fibre converter" loading="lazy" width="854" height="698"><figcaption>The electronics plate on the T101, from the front.</figcaption></figure>
+          <figure class="ph lq"><img src="assets/img/rover-top.webp" alt="The rover's plate seen from above" loading="lazy" width="638" height="580"><figcaption>From above: Pi 5, Nano, XL4015, TCA9548A and the fibre converter.</figcaption></figure>
           <div class="ph soon"><span>Drive test video</span><small>coming soon</small></div>
         </div>
         <div class="nexts"><button class="btn p" data-dl="remote">See the controller</button><button class="btn s" data-dl="link">See the link</button><button class="btn s" data-dl="select">All parts</button></div>
@@ -873,13 +889,13 @@ nano.<span class="f">send</span>(<span class="s">f'M {int(l * 255 * TRIM_L)} {in
       <section class="seg" data-type="hero" data-len="1.1"></section>
       <section class="seg mid" data-type="explode" data-len="1.4"><div class="sc lq bd"><h3>Straight from the CAD file</h3><p>This is the real model, every part where it sits. Keep scrolling to go through them.</p></div></section>
       <section class="seg" data-type="part" data-k="0" data-len="1.25"><article class="sc lq bd"><span class="n">01 / 08</span><h3>Housing</h3><p>The frame and the two grips, 3D printed in black PLA. I worked out where everything goes; the CAD modelling was done together with a friend.</p></article></section>
-      <section class="seg" data-type="part" data-k="1" data-len="1.25"><article class="sc lq bd"><span class="n">02 / 08</span><h3>Screen</h3><p>A 7-inch 800&nbsp;×&nbsp;480 capacitive touch screen: HDMI for the picture, USB for touch.</p><p>It runs my control interface, built in Electron: both cameras, both batteries and a map of nearby obstacles.</p></article></section>
+      <section class="seg" data-type="part" data-k="1" data-len="1.25"><article class="sc lq bd"><span class="n">02 / 08</span><h3>Screen</h3><p>A <span class="nw">7-inch</span> 800&nbsp;×&nbsp;480 capacitive touch screen: HDMI for the picture, USB for touch.</p><p>It runs my control interface, built in Electron: both cameras, both batteries and a map of nearby obstacles.</p></article></section>
       <section class="seg" data-type="part" data-k="2" data-len="1.25"><article class="sc lq bd"><span class="n">03 / 08</span><h3>Joysticks</h3><p>The left stick drives, the right one turns the rover's camera. The Pi has no analog inputs, so an ADS1015 reads all four axes over I²C.</p><p>A six-step calibration measures each stick's real forward and turn directions, so a crooked stick still drives straight.</p></article></section>
-      <section class="seg" data-type="part" data-k="3" data-len="1.25"><article class="sc lq bd"><span class="n">04 / 08</span><h3>Power switch</h3><p>The toggle on the top edge turns the controller on and off.</p></article></section>
-      <section class="seg" data-type="part" data-k="4" data-len="1.25"><article class="sc lq bd"><span class="n">05 / 08</span><h3>Raspberry Pi 5, 4&nbsp;GB</h3><p>The controller is the Wi-Fi access point the rover joins. Its Pi reads the sticks, sends every command 20 times a second over both links, and shows the two video streams.</p><p>It sits upside down under the screen, cooled by a 30&nbsp;mm fan in the back cover.</p></article></section>
-      <section class="seg" data-type="part" data-k="5" data-len="1.25"><article class="sc lq bd"><span class="n">06 / 08</span><h3>Power mounts</h3><p>These printed mounts hold the XL4015 buck converters: 5.1&nbsp;V for the Pi, and 3.3&nbsp;V for the fibre converter. An INA219 measures the battery for the on-screen gauge.</p></article></section>
-      <section class="seg" data-type="part" data-k="6" data-len="1.25"><article class="sc lq bd"><span class="n">07 / 08</span><h3>Batteries</h3><p>Four Samsung INR21700-50S cells, two in each grip, in 2S2P: 7.2&nbsp;V and 10&nbsp;Ah, about 72&nbsp;Wh. That's roughly four hours.</p></article></section>
-      <section class="seg" data-type="part" data-k="7" data-len="1.25"><article class="sc lq bd"><span class="n">08 / 08</span><h3>Covers</h3><p>The middle cover closes the electronics and carries the fan. The bottom cover closes everything up.</p></article></section>
+      <section class="seg" data-type="part" data-k="3" data-len="1.25"><article class="sc lq bd"><span class="n">04 / 08</span><h3>Power switch</h3><p>A small green <span class="nw">MTS-102</span> toggle on the top edge turns the controller on and off.</p><p>Three solder lugs inside, an M6 bushing through the wall and a nut on the outside.</p></article></section>
+      <section class="seg" data-type="part" data-k="4" data-len="1.25"><article class="sc lq bd"><span class="n">05 / 08</span><h3>Raspberry Pi 5, 4&nbsp;GB</h3><p>The controller is the <span class="nw">Wi-Fi</span> access point the rover joins. Its Pi reads the sticks, sends every command 20 times a second over both links, and shows the two video streams.</p><p>It sits upside down under the screen. A 30&nbsp;mm fan under it blows through a window in the back cover.</p></article></section>
+      <section class="seg" data-type="part" data-k="5" data-len="1.25"><article class="sc lq bd"><span class="n">06 / 08</span><h3>Power and sensing</h3><p>A printed frame hangs off the Pi's mounting holes. It carries the 30&nbsp;mm fan and the XL4015 that makes 5.1&nbsp;V for the Pi, so one fan cools both.</p><p>A second XL4015 makes 3.3&nbsp;V for the fibre converter. A 2S BMS protects the cells, and an INA219 measures the battery for the on-screen gauge.</p></article></section>
+      <section class="seg" data-type="part" data-k="6" data-len="1.25"><article class="sc lq bd"><span class="n">07 / 08</span><h3>Batteries</h3><p>Four Samsung <span class="nw">INR21700-50S</span> cells, two in each grip, in 2S2P: 7.2&nbsp;V and 10&nbsp;Ah, about 72&nbsp;Wh. That's roughly four hours.</p></article></section>
+      <section class="seg" data-type="part" data-k="7" data-len="1.25"><article class="sc lq bd"><span class="n">08 / 08</span><h3>Covers</h3><p>The middle cover holds the Pi in its middle and the small boards in its two side pockets. The bottom cover closes everything up, with a window for the fan.</p></article></section>
       <section class="seg" data-type="rebuild" data-len="1.1"></section>
       <section class="seg mid" data-type="action" data-len="1.9"><div class="sc lq bd"><h3>Switched on</h3><p>The screen wakes up with my interface: the mast camera full screen, the front camera in the corner, both batteries and the obstacle map.</p></div></section>
       <section class="after">
@@ -895,12 +911,12 @@ nano.<span class="f">send</span>(<span class="s">f'M {int(l * 255 * TRIM_L)} {in
     <span class="k">return</span> <span class="f">_deadzone</span>(x, c[<span class="s">'deadzone'</span>]), <span class="f">_deadzone</span>(y, c[<span class="s">'deadzone'</span>])</pre></div>
         <h2>Photos</h2>
         <div class="gal">
-          <figure class="ph wide cut"><img src="ph-remote-front.webp" alt="The finished controller from the front: screen, two joysticks and the green cells in the grips" loading="lazy" width="1100" height="752"><figcaption>Finished, from the front.</figcaption></figure>
-          <figure class="ph cut lq"><img src="ph-remote-back.webp" alt="The controller from the back: the screen's board, the cover with the fan and the HDMI cable" loading="lazy" width="1100" height="873"><figcaption>The back, with the cooling fan.</figcaption></figure>
-          <figure class="ph lq"><img src="ph-remote-hand.webp" alt="The controller held in one hand" loading="lazy" width="900" height="710"><figcaption>In the hand.</figcaption></figure>
-          <figure class="ph lq"><img src="ph-remote-inside.webp" alt="The controller's Pi 5 and wiring inside the printed case" loading="lazy" width="900" height="880"><figcaption>Inside, during assembly.</figcaption></figure>
-          <figure class="ph wide lq"><img src="ph-hud.webp" alt="The control interface: live video, picture in picture, batteries and proximity map" loading="lazy" width="1400" height="729"><figcaption>The interface, before a camera is connected.</figcaption></figure>
-          <figure class="ph wide lq"><img src="ph-monitor.webp" alt="The system monitor window showing the controller, the rover and the dock" loading="lazy" width="1400" height="722"><figcaption>The system monitor for all three Pis.</figcaption></figure>
+          <figure class="ph wide cut"><img src="assets/img/remote-front.webp" alt="The finished controller from the front: screen, two joysticks and the green cells in the grips" loading="lazy" width="1100" height="752"><figcaption>Finished, from the front.</figcaption></figure>
+          <figure class="ph cut lq"><img src="assets/img/remote-back.webp" alt="The controller from the back: the screen's board, the cover with the fan and the HDMI cable" loading="lazy" width="1100" height="873"><figcaption>The back, with the cooling fan.</figcaption></figure>
+          <figure class="ph lq"><img src="assets/img/remote-hand.webp" alt="The controller held in one hand" loading="lazy" width="900" height="710"><figcaption>In the hand.</figcaption></figure>
+          <figure class="ph lq"><img src="assets/img/remote-inside.webp" alt="The controller's Pi 5 and wiring inside the printed case" loading="lazy" width="900" height="880"><figcaption>Inside, during assembly.</figcaption></figure>
+          <figure class="ph wide lq"><img src="assets/img/hud.webp" alt="The control interface: live video, picture in picture, batteries and proximity map" loading="lazy" width="1400" height="729"><figcaption>The interface, before a camera is connected.</figcaption></figure>
+          <figure class="ph wide lq"><img src="assets/img/monitor.webp" alt="The system monitor window showing the controller, the rover and the dock" loading="lazy" width="1400" height="722"><figcaption>The system monitor for all three Pis.</figcaption></figure>
         </div>
         <div class="nexts"><button class="btn p" data-dl="rover">See the rover</button><button class="btn s" data-dl="link">See the link</button><button class="btn s" data-dl="select">All parts</button></div>
       </section>
@@ -909,11 +925,11 @@ nano.<span class="f">send</span>(<span class="s">f'M {int(l * 255 * TRIM_L)} {in
       <section class="seg" data-type="hero" data-len="1.1"></section>
       <section class="seg" data-type="step" data-k="0" data-len="1.2"><article class="sc lq bd"><span class="n">01 / 07</span><h3>Your thumbs</h3><p>The left stick drives and the right one turns the camera. An ADS1015 converts their four analog axes into numbers the Pi can read.</p></article></section>
       <section class="seg" data-type="step" data-k="1" data-len="1.2"><article class="sc lq bd"><span class="n">02 / 07</span><h3>Calibrated, then packed</h3><p>The Pi corrects each reading with the stick's calibration and packs both sticks into a tiny message with a timestamp.</p><p class="pk"><code>{"m":"dlr1","t":1749…,"j1":{"x":0.42,"y":0.80},"j2":{"x":-0.1,"y":0}}</code></p></article></section>
-      <section class="seg" data-type="step" data-k="2" data-len="1.3"><article class="sc lq bd"><span class="n">03 / 07</span><h3>Two roads at once</h3><p>Every 50&nbsp;ms the same packet goes out on both links: Wi-Fi on 2.4&nbsp;GHz, where the controller is the access point, and a single fibre through the two media converters.</p><p>It's UDP: a late command isn't worth resending, the next one is already on its way.</p></article></section>
+      <section class="seg" data-type="step" data-k="2" data-len="1.3"><article class="sc lq bd"><span class="n">03 / 07</span><h3>Two roads at once</h3><p>Every 50&nbsp;ms the same packet goes out on both links: <span class="nw">Wi-Fi</span> on 2.4&nbsp;GHz, where the controller is the access point, and a single fibre through the two media converters.</p><p>It's UDP: a late command isn't worth resending, the next one is already on its way.</p></article></section>
       <section class="seg" data-type="step" data-k="3" data-len="1.2"><article class="sc lq bd"><span class="n">04 / 07</span><h3>First copy wins</h3><p>Both copies reach the rover. It keeps whichever arrives first and drops the twin with the same timestamp.</p></article></section>
       <section class="seg" data-type="step" data-k="4" data-len="1.3"><article class="sc lq bd"><span class="n">05 / 07</span><h3>Safety, then the motors</h3><p>The distance sensors cap the speed near obstacles, tank mixing makes two track speeds, and the Nano drives the motors and the camera servo.</p><p>No command for 0.4&nbsp;s and the motors stop.</p></article></section>
       <section class="seg" data-type="step" data-k="5" data-len="1.3"><article class="sc lq bd"><span class="n">06 / 07</span><h3>And back</h3><p>Ten times a second the rover sends its distances, battery, servo angle and failsafe state, also on both links. Both cameras stream video to the screen.</p><p>The controller always shows the freshest data.</p></article></section>
-      <section class="seg" data-type="step" data-k="6" data-len="1.5"><article class="sc lq bd"><span class="n">07 / 07</span><h3>Jam the radio</h3><p>For the thesis demo I jammed the Wi-Fi band. The radio packets stopped, and after 1.5&nbsp;s of silence the controller switched to the fibre on its own.</p><p>The data kept coming the whole time.</p></article></section>
+      <section class="seg" data-type="step" data-k="6" data-len="1.5"><article class="sc lq bd"><span class="n">07 / 07</span><h3>Jam the radio</h3><p>For the thesis demo I jammed the <span class="nw">Wi-Fi</span> band. The radio packets stopped, and after 1.5&nbsp;s of silence the controller switched to the fibre on its own.</p><p>The data kept coming the whole time.</p></article></section>
       <section class="seg mid" data-type="finale" data-len="1.6"><div class="sc lq bd"><h3>Controller to rover</h3><p>That's the whole trip, 20 times a second while you drive.</p><p class="kv"><span>20 Hz commands</span><span>10 Hz telemetry</span><span>1.5 s failover</span></p></div></section>
       <section class="after">
         <h2>The code</h2>
@@ -962,6 +978,7 @@ last = t</pre></div>
     <div class="row r"><button class="btn s" data-go="home">Back home</button></div>
   </div></div></section>
   <div id="dim" aria-hidden="true"></div>
+  <div id="dl-fly" aria-hidden="true"></div>
 </div></div>
 <div class="edge t" aria-hidden="true"></div><div class="edge b" aria-hidden="true"></div>
 <div id="veil" aria-hidden="true"></div>
@@ -987,8 +1004,8 @@ last = t</pre></div>
 
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
-<script src="light.js"></script>
-<script src="dl3d.js"></script>
+<script src="assets/js/light.js"></script>
+<script src="assets/js/datalink-3d.js"></script>
 <script>
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $=s=>document.querySelector(s),lerp=(a,b,t)=>a+(b-a)*t,clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
@@ -1012,11 +1029,12 @@ const SPRING=mkSpring(.62,1.75),SOFT=mkSpring(.82,1.45),EASE='cubic-bezier(.65,0
 function aSpring(d,b=0){const w=2*Math.PI/d,z=1-b,eps=.0012,wd=w*Math.sqrt(Math.max(1e-9,1-z*z));let T=d;
   if(z<1)T=Math.log(Math.sqrt(1+(z*w/wd)**2)/eps)/(z*w);else while(Math.exp(-w*T)*(1+w*T)>eps)T+=.005;
   const x=t=>z<1?1-Math.exp(-z*w*t)*(Math.cos(wd*t)+z*w/wd*Math.sin(wd*t)):1-Math.exp(-w*t)*(1+w*t);
-  if(!LIN)return{e:b>.1?`cubic-bezier(.34,${(1+b*1.6).toFixed(2)},.5,1)`:'cubic-bezier(.2,.8,.2,1)',ms:Math.round(d*1250)};
+  const f=k=>k>=1?1:x(k*T);
+  if(!LIN)return{e:b>.1?`cubic-bezier(.34,${(1+b*1.6).toFixed(2)},.5,1)`:'cubic-bezier(.2,.8,.2,1)',ms:Math.round(d*1250),f};
   const n=Math.min(90,Math.max(30,Math.round(T*70))),pts=[];for(let i=0;i<=n;i++)pts.push(+x(i/n*T).toFixed(4));pts[n]=1;
-  return{e:`linear(${pts.join(',')})`,ms:Math.round(T*1000)}}
+  return{e:`linear(${pts.join(',')})`,ms:Math.round(T*1000),f}}
 /* the island: opening is elastic (it grows like something alive), closing is quick and calm, a new label sits in between */
-const SPR={open:aSpring(.5,.2),close:aSpring(.4,.05),size:aSpring(.44,.14),pop:aSpring(.34,.3)};
+const SPR={open:aSpring(.5,.2),close:aSpring(.4,.05),size:aSpring(.44,.14),pop:aSpring(.34,.3),zoom:aSpring(.6,.05),unzoom:aSpring(.52,0)};
 const idle=f=>(window.requestIdleCallback?requestIdleCallback(f,{timeout:2000}):setTimeout(f,250));
 
 /* ---------- quality tiers: 0 full · 1 balanced · 2 lite (no backdrop blur) · 3 minimal light ----------
@@ -1223,7 +1241,7 @@ const LIGHT=(()=>{let cv=$('#light'),kind='none',w=null,eng=null,transferred=fal
     kind='none';eng=null;startLocal();push('clock','size','geo','st','dive','vis','alive')}
   function start(){
     if(window.PrismLightEngine&&!window.LIGHT_NOWORKER&&typeof Worker==='function'&&typeof OffscreenCanvas==='function'&&cv.transferControlToOffscreen){
-      try{w=new Worker('light.js');w.onmessage=e=>onMsg(e.data);w.onerror=e=>{e.preventDefault();console.info('light: main-thread fallback (worker failed)');toMain()};
+      try{w=new Worker('assets/js/light.js');w.onmessage=e=>onMsg(e.data);w.onerror=e=>{e.preventDefault();console.info('light: main-thread fallback (worker failed)');toMain()};
         const off=cv.transferControlToOffscreen();transferred=true;
         w.postMessage({t:'init',canvas:off,K:OPT.K,docOrigin:performance.timeOrigin},[off]);kind='worker';
         readyT=setTimeout(()=>{if(kind==='worker'){console.info('light: main-thread fallback (worker timeout)');toMain()}},4000);
@@ -1535,7 +1553,7 @@ const HOME=(()=>{const page=$('#pg-home'),sheet=$('#sheet'),shBox=sheet.querySel
     praf=requestAnimationFrame(()=>{praf=0;const r=pt.getBoundingClientRect(),x=(ex-r.left)/r.width-.5,y=(ey-r.top)/r.height-.5;
       chR.style.transform=`translate(${(-x*18).toFixed(1)}px,${(-y*12).toFixed(1)}px)`;chB.style.transform=`translate(${(x*18).toFixed(1)}px,${(y*12).toFixed(1)}px)`})});
   pt.addEventListener('pointerleave',()=>[chR,chB].forEach(el=>{if(!el.style.transform)return;const f=el.style.transform;el.style.transform='';el.animate([{transform:f},{transform:'none'}],{duration:520,easing:SPRING})}));
-  pt.addEventListener('click',()=>openSheet(pt,'<img src="me.webp" alt="Radu" style="width:100%;border-radius:20px;display:block">',''));
+  pt.addEventListener('click',()=>openSheet(pt,'<img src="assets/img/me.webp" alt="Radu" style="width:100%;border-radius:20px;display:block">',''));
 
   /* terminal: types a short intro the first time it is seen, then takes commands */
   const term=page.querySelector('.t-term'),out=term.querySelector('.term-out'),inp=term.querySelector('input');
@@ -1693,7 +1711,7 @@ const PROJ=(()=>{const pp=$('#pg-projects'),dl=$('#pg-dl'),card=$('#pj-rover'),c
   [pp,dl].forEach(p=>new MutationObserver(vis).observe(p,{attributes:true,attributeFilter:['class']}));
   function load(){if(!window.DL3D)return;DL3D.init(TIER.t).then(ok=>{if(!ok)return;card.classList.add('rv-ready');
     if(current==='dl'){DL3D.mount(dslot);DL3D.go(DL.mode,{dur:0})}else{DL3D.mount(cslot);DL3D.go('card',{dur:0})}vis()})}
-  TIER.on(t=>{const d=D();if(d)d.setTier(t)});
+  TIER.on(t=>{if(window.DL3D)DL3D.setTier(t)});      /* also before the model is in: init() may already have run with the old tier */
   /* the projects page is about to be shown some other way (menu): put the model back in its card */
   function prep(n){const d=D();if(!d)return;if(n===pp&&d.canvas.parentNode!==cslot){d.mount(cslot);d.release();d.go('card',{dur:0})}}
   /* cards lean toward the pointer and a soft light follows it */
@@ -1715,7 +1733,7 @@ const PROJ=(()=>{const pp=$('#pg-projects'),dl=$('#pg-dl'),card=$('#pj-rover'),c
    paths they really take: commands (cyan), telemetry (amber), video (violet). It is laid out in its own units and scaled as
    one piece to fit the free space, and it animates only while it is on screen. */
 const NETD=(()=>{const root=$('#dl-net'),box=root.querySelector('.net-in'),svg=box.querySelector('svg'),eg=svg.querySelector('.ed'),pg=svg.querySelector('.pu'),
-    nn=box.querySelector('.nn'),key=box.querySelector('.net-key'),pans=[...box.querySelectorAll('.np')],page=$('#pg-dl');
+    nn=box.querySelector('.nn'),key=box.querySelector('.net-key'),pans=[...box.querySelectorAll('.np')],page=$('#pg-dl'),spot=box.querySelector('.net-spot');
   const NS='http://www.w3.org/2000/svg',C='#4DE1FF',A='#FFB347',V='#A98BFF',G='#5CF59A',R='#FF7A8C',GR={[C]:'pkC',[A]:'pkA',[V]:'pkV'};
   /* title, status line, kind (1 = a computer, 2 = a link) */
   const N={sticks:['Joysticks','4 analog axes'],adc:['ADS1015','12-bit · I²C'],pic:['Raspberry Pi 5','controller · 4 GB',1],scr:['7″ screen','800 × 480'],
@@ -1744,7 +1762,7 @@ const NETD=(()=>{const root=$('#dl-net'),box=root.querySelector('.net-in'),svg=b
     {on:['cams','tof','pir','wifi','fibre','pic','scr'],ed:['ec','et','w','f','es'],st:{cams:['1080p30 MJPEG',V],wifi:['video · data',V],fibre:['data · 10 Hz',A],scr:['video + HUD',V]},
       fl:[['ec',V,1,1.4],['et',A,1,1],['w',A,-1,.9],['f',A,-1,.9],['w',V,-1,1.4,{ph:.5}],['es',V,1,1.4],['es',A,1,1,{ph:.5}]]},
     {on:['pic','wifi','fibre','pir'],ed:['w','f'],jam:1}];
-  let built=false,lay=null,paths={},boxes={},step=-9,phase=-1,raf=0,vis=false,last=0,clock=0,dots=[],skip=0;
+  let built=false,lay=null,paths={},boxes={},step=-9,phase=-1,raf=0,vis=false,last=0,clock=0,dots=[],dying=[],skip=0,FOC=[];
   function build(){built=true;
     for(const [id,v] of Object.entries(N)){const d=document.createElement('div');d.className='nd'+(v[2]===1?' big':v[2]===2?' lane':'');
       d.innerHTML='<b></b><i></i>';d.querySelector('b').textContent=v[0];d.querySelector('i').textContent=v[1];nn.appendChild(d);boxes[id]=d}
@@ -1758,7 +1776,7 @@ const NETD=(()=>{const root=$('#dl-net'),box=root.querySelector('.net-in'),svg=b
   function layout(){if(!built)build();const r=root.getBoundingClientRect();if(!r.width||!r.height)return;
     const tall=innerWidth<=760||innerWidth/innerHeight<.9;let L=LAY[tall?'tall':'wide'],left=0;
     /* on wide screens, keep clear of the story cards on the left */
-    if(!tall){const sc=page.querySelector('.dl-story[data-for=link] .seg[data-type=step] .sc');if(sc){const cr=sc.getBoundingClientRect();left=Math.max(0,cr.right+28-r.left)}}
+    if(!tall){const sc=document.querySelector('#dl-cards .sc[data-story=link][data-type=step]');if(sc){const cr=sc.getBoundingClientRect();left=Math.max(0,cr.right+28-r.left)}}
     const aw=r.width-left,ah=r.height,s=Math.min(aw/L.W,ah/L.H,1.3),key2=L.W+'|'+s.toFixed(4)+'|'+left;
     box.style.transform=`translate(${(left/2).toFixed(1)}px,0) translate(-50%,-50%) scale(${s.toFixed(4)})`;
     if(lay===L&&box._k===key2)return;lay=L;box._k=key2;root.classList.toggle('tall',tall);
@@ -1770,15 +1788,18 @@ const NETD=(()=>{const root=$('#dl-net'),box=root.querySelector('.net-in'),svg=b
         d=`M${r1(A0[0])} ${r1(A0[1])} ${curve(A0,M0)} L${r1(M1[0])} ${r1(M1[1])} ${curve(M1,B0)}`}
       else{const A0=side(L.at[a],sd[0]),B0=side(L.at[b],sd[1]);d=`M${r1(A0[0])} ${r1(A0[1])} ${curve(A0,B0)}`}
       paths[id].setAttribute('d',d);paths[id]._len=paths[id].getTotalLength()}
-    key.style.left=L.key[0]+'px';key.style.top=L.key[1]+'px'}
+    key.style.left=L.key[0]+'px';key.style.top=L.key[1]+'px';
+    /* where the light rests for each step: around the parts that step lights up */
+    FOC=S.map(st=>{let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const id of st.on){const [x,y,w,h]=L.at[id];x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x+w);y1=Math.max(y1,y+h)}
+      return{x:(x0+x1)/2,y:(y0+y1)/2,s:clamp(Math.hypot(x1-x0,y1-y0)/420,.55,1.5)}})}
   /* status lines: a short cross-fade when one changes */
   function status(id,txt,col,quiet){const i=boxes[id].querySelector('i'),t=txt||N[id][1];
     if(i.textContent!==t){i.textContent=t;if(!reduce&&!quiet)i.animate([{opacity:0,filter:'blur(3px)'},{opacity:1,filter:'blur(0)'}],{duration:320,easing:'cubic-bezier(.2,.7,.2,1)'})}
     i.classList.toggle('hot',!!col);if(col)i.style.setProperty('--hc',col)}
-  function flows(list){dots.forEach(d=>d.el.remove());dots=[];
+  function flows(list){if(reduce||!vis){dots.forEach(d=>d.el.remove());dying.forEach(d=>d.el.remove());dying=[]}else{dots.forEach(d=>{d.die=clock;dying.push(d)})}dots=[];
     for(const [e,col,dir,rate,o={}] of list){const n=paths[e]._len<60?2:3;
       for(let i=0;i<n;i++){const c=document.createElementNS(NS,'circle');c.setAttribute('r',lay===LAY.tall?8.5:8);c.setAttribute('fill',`url(#${GR[col]})`);c.setAttribute('opacity','0');pg.appendChild(c);
-        dots.push({el:c,e,dir,rate,ph:i/n+(o.ph||0)+(o.late||0),o})}}}
+        dots.push({el:c,e,dir,rate,ph:i/n+(o.ph||0)+(o.late||0),o,born:clock})}}}
   function setStep(k){if(k===step)return;step=k;phase=-1;const st=S[k];root.classList.toggle('ov',!st);
     for(const [id,d] of Object.entries(boxes)){d.classList.toggle('on',!!st&&st.on.includes(id));d.classList.remove('bad');status(id,st&&st.st&&st.st[id]?st.st[id][0]:'',st&&st.st&&st.st[id]?st.st[id][1]:'')}
     for(const [id,p] of Object.entries(paths)){p.classList.toggle('on',!!st&&st.ed.includes(id));p.classList.remove('jam')}
@@ -1799,17 +1820,22 @@ const NETD=(()=>{const root=$('#dl-net'),box=root.querySelector('.net-in'),svg=b
   function frame(ts){raf=0;if(!vis)return;
     if(TIER.t>=1&&(skip^=1)){raf=requestAnimationFrame(frame);return}          // about 30 fps on the lighter tiers
     const dt=last?Math.min(.05,(ts-last)/1000):0;last=ts;clock+=dt;
-    for(const d of dots){const p=paths[d.e];if(!p||!p._len)continue;let u=(clock*.36*d.rate*(120/Math.max(120,p._len))**.35+d.ph)%1;if(d.dir<0)u=1-u;
+    dying=dying.filter(d=>{if(clock-d.die>.32){d.el.remove();return false}return true});
+    for(const d of dots.concat(dying)){const p=paths[d.e];if(!p||!p._len)continue;let u=(clock*.36*d.rate*(120/Math.max(120,p._len))**.35+d.ph)%1;if(d.dir<0)u=1-u;
       const q=p.getPointAtLength(u*p._len),f=d.dir<0?1-u:u;let o=Math.min(1,Math.sin(f*Math.PI)*1.7);
       if(d.o.cut)o*=1-sstep(.36,.5,f);                                      // jammed: lost half way
       if(d.o.drop)o*=1-sstep(.72,.9,f);                                     // the late twin, dropped on arrival
+      o*=d.die!=null?1-sstep(0,.32,clock-d.die):sstep(0,.4,clock-d.born);  // old packets fade out, new ones fade in
       d.el.setAttribute('cx',q.x.toFixed(1));d.el.setAttribute('cy',q.y.toFixed(1));d.el.setAttribute('opacity',o.toFixed(2))}
     raf=requestAnimationFrame(frame)}
   function kick(){if(vis&&!raf){last=0;raf=requestAnimationFrame(frame)}}
   /* called on every scroll of the link story */
   function update(w){const st=w.type==='step',show=st||(w.type==='hero'&&w.t>.7);
     root.classList.toggle('show',show);vis=show&&!reduce;if(!show)return;layout();
-    setStep(st?w.k:-1);if(st&&w.k===6)jam(w.t);kick()}
+    setStep(st?w.k:-1);if(st&&w.k===6)jam(w.t);kick();
+    if(FOC.length){let f,o;if(!st){f=FOC[0];o=0}else{const a=FOC[w.k],b=FOC[Math.min(w.k+1,FOC.length-1)],m=sstep(.62,1,w.t);
+        f={x:lerp(a.x,b.x,m),y:lerp(a.y,b.y,m),s:lerp(a.s,b.s,m)};o=w.k===0?sstep(0,.3,w.t):1}
+      spot.style.transform=`translate(${f.x.toFixed(1)}px,${f.y.toFixed(1)}px) scale(${f.s.toFixed(3)})`;spot.style.opacity=o.toFixed(3)}}
   function hide(){root.classList.remove('show');vis=false}
   addEventListener('resize',()=>{if(root.classList.contains('show'))layout()});
   return{update,hide}})();
@@ -1821,6 +1847,24 @@ const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),c
   const picks=[...sel.querySelectorAll('.pick')],selT=sel.querySelector('.sel-t'),NAME={rover:'Rover',remote:'Controller',link:'Link'};
   const OPEN=mkSpring(.92,1.0),SHUT=mkSpring(.96,1.3),EIO='cubic-bezier(.65,0,.35,1)';
   let mode='select',segs=[],sh=innerHeight,saved=0,hot=null,tagKey='',tagEls=[];
+  /* the story cards move into one layer of the stage; each snaps into place while its segment of the story is on screen */
+  const cardsBox=$('#dl-cards');
+  page.querySelectorAll('.dl-story').forEach(st=>st.querySelectorAll('.seg').forEach(seg=>{const c=seg.querySelector('.sc');if(!c)return;
+    c.dataset.story=st.dataset.for;c.dataset.type=seg.dataset.type;c.dataset.k=seg.dataset.k||'0';if(seg.classList.contains('mid'))c.classList.add('mid');
+    seg._card=c;cardsBox.appendChild(c)}));
+  let cardOn=null,lastY=0,dir=1;const CIN=aSpring(.5,.12);
+  function cardShow(c,d){c.getAnimations().forEach(a=>a.cancel());c.classList.add('on');
+    if(reduce){c.animate([{opacity:0},{opacity:1}],{duration:160});return}
+    c.animate([{opacity:0},{opacity:1}],{duration:300,easing:OUT});
+    c.animate([{translate:`0 ${24*d}px`,scale:'.965'},{translate:'0 0',scale:'1'}],{duration:CIN.ms,easing:CIN.e})}
+  function cardHide(c,d){c.getAnimations().forEach(a=>a.cancel());if(reduce){c.classList.remove('on');return}
+    const a=c.animate([{opacity:1,translate:'0 0',scale:'1'},{opacity:0,translate:`0 ${-16*d}px`,scale:'.975'}],{duration:190,easing:IN,fill:'forwards'});
+    a.finished.then(()=>{if(cardOn!==c){c.classList.remove('on');a.cancel()}},()=>{})}
+  function cardsUi(w){const y=page.scrollTop;if(y!==lastY){dir=y>lastY?1:-1;lastY=y}
+    const c=w.seg&&w.seg.card&&w.t>.05&&w.t<.95?w.seg.card:null;if(c===cardOn)return;
+    if(cardOn)cardHide(cardOn,dir);cardOn=c;if(c)cardShow(c,dir)}
+  function cardsOut(){if(cardOn)cardHide(cardOn,-1);cardOn=null}
+  function cardsReset(){cardOn=null;cardsBox.querySelectorAll('.sc').forEach(c=>{c.getAnimations().forEach(a=>a.cancel());c.classList.remove('on')})}
   const D=()=>window.DL3D&&DL3D.ok?DL3D:null,pad2=n=>String(n).padStart(2,'0');
   /* faint terrain lines behind the rover, drawn once */
   idle(()=>{const c=document.createElement('canvas');c.width=1400;c.height=900;const g=c.getContext('2d');g.strokeStyle='rgba(255,176,120,.26)';g.lineWidth=1.3;
@@ -1830,37 +1874,57 @@ const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),c
   function setSh(){sh=page.clientHeight||innerHeight;page.style.setProperty('--sh',sh+'px');layout()}
   function layout(){segs=[];if(mode==='select')return;let y=0;
     page.querySelector(`.dl-story[data-for="${mode}"]`).querySelectorAll('.seg').forEach(el=>{const h=Math.round((+el.dataset.len||1)*sh);el.style.height=h+'px';
-      segs.push({el,type:el.dataset.type,k:+(el.dataset.k||0),top:y,h});y+=h})}
+      segs.push({el,type:el.dataset.type,k:+(el.dataset.k||0),top:y,h,card:el._card||null});y+=h});cardTops()}
+  /* on a tall screen the cards sit at the bottom: tell the 3D view where each part's card starts, so the part sits above it */
+  function cardTops(){const d=D();if(!d||!d.cardTops)return;const tops=[];
+    segs.forEach(s=>{if(s.type!=='part'||!s.card)return;const b=parseFloat(getComputedStyle(s.card).bottom);if(b>=0)tops[s.k]=(sh-b-s.card.offsetHeight)/sh});
+    d.cardTops(mode,tops)}
   addEventListener('resize',()=>{clearTimeout(page._rz);page._rz=setTimeout(()=>{if(current==='dl'){setSh();onScroll()}},120)});
-  function setMode(m){mode=m;page.dataset.mode=m;page.dataset.bg=m;layout();buildTags();if(m!=='link')NETD.hide()}
+  function setMode(m){mode=m;page.dataset.mode=m;page.dataset.bg=m;cardsReset();layout();buildTags();if(m!=='link')NETD.hide();if(m==='select')root.classList.remove('dl-staged')}
   /* where the story is, measured at the middle of the screen */
   function where(){const y=page.scrollTop+sh/2;for(const s of segs)if(y<s.top+s.h)return{type:s.type,k:s.k,t:clamp((y-s.top)/s.h),seg:s};return{type:'after',k:0,t:1,seg:null}}
   let W0=null;
-  function onScroll(){if(mode==='select'||!segs.length)return;const w=where();W0=w;const d=D();if(d)d.story({type:w.type,k:w.k,t:w.t});ui(w);if(mode==='link')NETD.update(w)}
+  function onScroll(){if(mode==='select'||!segs.length)return;const w=where();W0=w;const d=D();if(d)d.story({type:w.type,k:w.k,t:w.t});ui(w);cardsUi(w);if(mode==='link')NETD.update(w)}
   page.addEventListener('scroll',onScroll,{passive:true});
   function ui(w){const isPart=w.type==='part'||w.type==='step',n=mode==='link'?7:8;
+    root.classList.toggle('dl-staged',w.type!=='after');   // the frosted bottom edge would blur the progress line; not needed over the stage
     hud.classList.toggle('on',isPart&&w.t>.12&&w.t<.94);
     if(isPart){hud.querySelector('.hn').textContent=`${pad2(w.k+1)} / ${pad2(n)}`;hud.querySelector('.hb i').style.transform=`scaleX(${((w.k+w.t)/n).toFixed(3)})`;
-      hud.querySelector('.ht').textContent=w.seg.el.querySelector('h3').textContent}
+      hud.querySelector('.ht').textContent=(w.seg.card||w.seg.el).querySelector('h3').textContent}
     hud.style.setProperty('--tc',mode==='rover'?'#FF9F43':mode==='remote'?'#6E9BFF':'#4DE1FF');
     const showParts=mode!=='link'&&((w.type==='explode'&&w.t>.55)||(w.type==='part'&&w.k===0&&w.t<.1));
     tags.classList.toggle('on',showParts)}
   /* labels: one per part on the taken-apart model */
   function buildTags(){tags.textContent='';tagEls=[];
     const col=mode==='rover'?'#FF9F43':mode==='remote'?'#6E9BFF':'#4DE1FF';
-    if(mode==='rover'||mode==='remote'){const d=D(),keys=d?d.stops(mode):[],names=[...page.querySelectorAll(`.dl-story[data-for="${mode}"] .seg[data-type=part] h3`)].map(h=>h.textContent);
+    if(mode==='rover'||mode==='remote'){const d=D(),keys=d?d.stops(mode):[],names=[...cardsBox.querySelectorAll(`.sc[data-story="${mode}"][data-type=part] h3`)].map(h=>h.textContent);
       keys.forEach((k,i)=>add(`${mode}:${k}`,names[i]||k));tagKey=mode}
     else tagKey='';
-    function add(anchor,txt,small){const el=document.createElement('span');el.className='tag'+(small?' small':'');el.style.setProperty('--tc',col);el.innerHTML='<i></i><b></b>';el.querySelector('b').textContent=txt;tags.appendChild(el);tagEls.push({el,anchor})}}
+    function add(anchor,txt,small){const el=document.createElement('span');el.className='tag'+(small?' small':'');el.style.setProperty('--tc',col);el.innerHTML='<b></b><i></i>';const b=el.querySelector('b');b.textContent=txt;tags.appendChild(el);tagEls.push({el,anchor,b,i:el.querySelector('i')})}}
   /* every frame the camera moves: keep the pick areas and labels on their objects */
   function place(){const d=D();if(!d||(current!=='dl'&&!busy))return;const [w,h]=d.size;
     if(mode==='select'){picks.forEach(b=>{const k=b.dataset.pick,a=d.anchor(k);if(!a)return;
         let bw,bh,x,y;if(k==='link'){const nar=w<560;bw=nar?132:Math.min(300,w*.3);bh=nar?74:130;x=a.x-bw/2;y=nar?a.y-bh/2-4:a.y+16}   // under the arc's crown
         else{const top=d.anchor(k+'Top')||{y:a.y-260};bh=Math.max(140,a.y-top.y+96);bw=Math.max(200,Math.min(w*.42,bh*1.15));x=a.x-bw/2;y=top.y-24}
         x=clamp(x,6,w-bw-6);b.style.width=bw+'px';b.style.height=bh+'px';b.style.transform=`translate(${x.toFixed(1)}px,${y.toFixed(1)}px)`})}
-    if(tags.classList.contains('on'))tagEls.forEach(t=>{const a=d.anchor(t.anchor);if(!a||!a.ok){t.el.style.opacity='0';return}t.el.style.opacity='';
-      const lw=t.w||(t.w=t.el.offsetWidth||120);let right=a.x>w*.5;if(right&&a.x+lw+20>w)right=false;else if(!right&&a.x-lw-20<0)right=true;const dx=right?14:-14;t.el.classList.toggle('r',!right);
-      t.el.style.transform=`translate(${(a.x+(right?-4:4)).toFixed(1)}px,${(a.y-12).toFixed(1)}px) translateX(${right?0:-100}%) translateX(${dx}px)`})}
+    if(tags.classList.contains('on'))layTags(d,w,h)}
+  /* labels on the taken-apart model: the dot sits on the part and the pill beside it, on the side away from the middle of the
+     screen. Pills that would touch are pushed apart up and down (by as much as they overlap, so they move smoothly while the
+     camera does), and a thin line then joins a moved pill to its dot. */
+  function layTags(d,w,h){const L=[],G=12,M=8,SP=5,TOP=72;
+    tagEls.forEach(t=>{const a=d.anchor(t.anchor);if(!a||!a.ok){t.el.style.opacity='0';return}t.el.style.opacity='';
+      if(!t.w){t.w=t.b.offsetWidth||120;t.h=t.b.offsetHeight||26}L.push({t,a,w:t.w,h:t.h,y:a.y-t.h/2})});
+    const fits=(o,r)=>r?o.a.x+G+o.w<=w-M:o.a.x-G-o.w>=M;
+    L.forEach(o=>{let r=o.t.side;if(r===undefined||Math.abs(o.a.x-w/2)>16)r=o.a.x>w/2;if(!fits(o,r)&&fits(o,!r))r=!r;   // near the middle a label keeps its side
+      o.r=r;o.x=clamp(r?o.a.x+G:o.a.x-G-o.w,M,w-M-o.w)});
+    L.sort((p,q)=>p.a.y-q.a.y);
+    const hit=(p,q)=>p.x<q.x+q.w+SP&&q.x<p.x+p.w+SP&&p.y<q.y+q.h+SP&&q.y<p.y+p.h+SP;
+    for(let it=0;it<40;it++){let moved=false;
+      for(let i=0;i<L.length;i++)for(let j=i+1;j<L.length;j++){const p=L[i],q=L[j];if(!hit(p,q))continue;const k=(p.y+p.h+SP-q.y)/2+.25;p.y-=k;q.y+=k;moved=true}
+      L.forEach(o=>o.y=clamp(o.y,TOP,h-M-o.h));if(!moved)break}
+    L.forEach(o=>{const t=o.t,ex=o.r?o.x:o.x+o.w,ey=o.y+o.h/2,lx=ex-o.a.x,ly=ey-o.a.y,far=Math.abs(ly)>2||Math.abs(Math.abs(lx)-G)>2;t.side=o.r;
+      t.el.style.transform=`translate(${o.x.toFixed(1)}px,${o.y.toFixed(1)}px)`;t.i.style.transform=`translate(${(o.a.x-o.x).toFixed(1)}px,${(o.a.y-o.y).toFixed(1)}px)`;
+      t.i.style.setProperty('--ll',far?Math.hypot(lx,ly).toFixed(1)+'px':'0px');t.i.style.setProperty('--la',Math.atan2(ly,lx).toFixed(3)+'rad')})}
   /* the pick screen: hover, focus and arrow keys pick an object, Enter or a click opens it */
   function setHot(k){hot=k;picks.forEach(b=>b.classList.toggle('hot',b.dataset.pick===k));sel.classList.toggle('has-hot',!!k);const d=D();if(d)d.hover(k)}
   picks.forEach(b=>{const k=b.dataset.pick;b.addEventListener('pointerenter',()=>setHot(k));b.addEventListener('pointerleave',()=>{if(hot===k&&document.activeElement!==b)setHot(null)});
@@ -1873,53 +1937,64 @@ const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),c
   const later=(ms,f)=>sleep(ms).then(f);
   const fadeIn=(els,delay,dur=520)=>els.forEach((el,i)=>el.animate([{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'none'}],{duration:dur,delay:delay+i*60,easing:SOFT,fill:'backwards'}));
 
-  /* Projects card -> pick screen: the page grows out of the card, the rover keeps spinning while the camera pulls back,
-     the controller and the link appear next to it */
+  /* Projects card -> pick screen. One spring drives everything, so the page, the title and the camera land together.
+     The card's glass grows to fill the screen while its words fade under the new page, the title flies to its new place,
+     the camera pulls back from the card's framing to the pick screen, and the projects page sinks behind. The 3D view
+     travels in its own layer (it never fades or jumps), and the labels and the back button's drop wait for the landing. */
+  const fly=$('#dl-fly'),insR=(r,rad)=>`inset(${r.top.toFixed(1)}px ${(innerWidth-r.right).toFixed(1)}px ${(innerHeight-r.bottom).toFixed(1)}px ${r.left.toFixed(1)}px round ${rad}px)`;
   async function enter(){if(busy||menuOpen||current!=='projects')return;busy=true;
-    const o=pp,n=page,Dur=reduce?1:1000,pw=n.querySelector('.pw'),cT=card.querySelector('.pj-t');saved=o.scrollTop;
-    const cr=card.getBoundingClientRect(),cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect();
+    const o=pp,n=page,Z=SPR.zoom,Dur=reduce?1:Z.ms,pw=n.querySelector('.pw'),cT=card.querySelector('.pj-t');saved=o.scrollTop;
+    const cr=card.getBoundingClientRect(),cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect(),full={top:0,left:0,right:innerWidth,bottom:innerHeight};
     card.classList.remove('tilt');card.style.transform='';const d=D();if(d)d.cardHover(false);
-    n.style.opacity='0';n.style.zIndex=3;n.scrollTop=0;setMode('select');n.classList.add('warm');setSh();setHot(null);
+    n.style.zIndex=3;n.scrollTop=0;setMode('select');n.classList.add('warm');setSh();setHot(null);
     const tf=selT.getBoundingClientRect(),fs=parseFloat(getComputedStyle(cT).fontSize)/parseFloat(getComputedStyle(selT).fontSize);
-    LBL='DataLink Rover';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});DROP.tip('Projects');later(reduce?0:260,()=>{if(current==='dl'||busy)DROP.show()});
-    if(d){d.mount(slot);d.keep(Dur*1.5);d.go('select',{dur:reduce?0:Dur*1.25,from:d.cardPose(cs),ease:k=>1-Math.pow(1-k,3)})}
-    if(reduce){n.classList.add('active');n.classList.remove('warm');n.style.opacity='';n.style.zIndex='';o.classList.remove('active');current='dl';busy=false;PROJ.vis();return}
+    LBL='DataLink Rover';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});DROP.tip('Projects');
+    if(reduce){if(d){d.mount(slot);d.go('select',{dur:0})}n.classList.add('active');n.classList.remove('warm');n.style.zIndex='';o.classList.remove('active');current='dl';busy=false;PROJ.vis();DROP.show();return}
+    fly.classList.add('on');fly.style.clipPath=insR(cr,30);
+    /* the controller, the link and the floor start "below zero", so they stay hidden until the zoom is a third of the way out */
+    if(d){if(TIER.t>=1)d.lowRes(Dur+300);d.mount(fly);d.keep(Dur+700);d.go('select',{dur:Dur,from:{...d.cardPose(cs),mV:-.6,lV:-.9,lP:-.9,pad:-.8,floor:-.6},ease:Z.f})}
     const skin=document.createElement('div');skin.className='skin';pw.appendChild(skin);
-    const full={top:0,left:0,right:innerWidth,bottom:innerHeight},ins=(r,rad)=>`inset(${r.top.toFixed(1)}px ${(innerWidth-r.right).toFixed(1)}px ${(innerHeight-r.bottom).toFixed(1)}px ${r.left.toFixed(1)}px round ${rad}px)`;
-    const clip=n.animate([{clipPath:ins(cr,30)},{clipPath:ins(full,0)}],{duration:Dur,easing:OPEN,fill:'both'});
-    n.style.opacity='';n.animate([{opacity:0},{opacity:1}],{duration:150,easing:'linear',fill:'backwards'});
-    skin.animate([{opacity:1},{opacity:0,offset:.5},{opacity:0}],{duration:Dur,fill:'both'});later(140,()=>{if(current==='dl'||busy)cT.style.visibility='hidden'});
-    selT.animate([{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${fs.toFixed(4)})`},{transform:'none'}],{duration:Dur,easing:OPEN,fill:'both'});
-    fadeIn([sel.querySelector('.sel-k'),sel.querySelector('.sel-s'),...picks.map(b=>b.querySelector('.pk-l')),sel.querySelector('.sel-help')],Dur*.5);
-    o.style.transformOrigin='50% 50%';o.animate([{transform:'none'},{transform:'scale(.93)'}],{duration:Dur,easing:OUT,fill:'forwards'});
-    dimEl.animate([{opacity:0},{opacity:.55}],{duration:Dur*.8,easing:'linear',fill:'forwards'});
+    const opt={duration:Dur,easing:Z.e,fill:'both'},clipK=[{clipPath:insR(cr,30)},{clipPath:insR(full,0)}];
+    const clip=n.animate(clipK,opt);fly.animate(clipK,opt);
+    n.animate([{opacity:0},{opacity:1}],{duration:170,easing:'linear',fill:'backwards'});       // the card's words fade out under the new page
+    skin.animate([{opacity:1},{opacity:0,offset:.5},{opacity:0}],{duration:Dur,fill:'both'});later(150,()=>{if(current==='dl'||busy)cT.style.visibility='hidden'});
+    selT.animate([{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${fs.toFixed(4)})`},{transform:'none'}],opt);
+    const lab=[sel.querySelector('.sel-k'),sel.querySelector('.sel-s'),...picks.map(b=>b.querySelector('.pk-l')),sel.querySelector('.sel-help')];
+    lab.forEach(el=>el.style.opacity='0');
+    o.style.transformOrigin='50% 50%';o.animate([{transform:'none'},{transform:'scale(.94)'}],opt);
+    dimEl.animate([{opacity:0},{opacity:.6}],{duration:Dur,easing:Z.e,fill:'forwards'});
     await clip.finished.catch(()=>{});
+    if(d)d.mount(slot);fly.getAnimations().forEach(a=>a.cancel());fly.classList.remove('on');fly.style.clipPath='';
     [o,n,selT,dimEl].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());Object.assign(el.style,{transform:'',transformOrigin:'',clipPath:'',zIndex:''})});
-    skin.remove();o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='dl';busy=false;PROJ.vis()}
+    skin.remove();o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='dl';busy=false;PROJ.vis();
+    lab.forEach(el=>el.style.opacity='');fadeIn(lab,0,460);later(90,()=>{if(current==='dl'&&!busy)DROP.show()})}
 
-  /* pick screen (or a story) -> Projects: everything settles back into the card */
+  /* pick screen (or a story) -> Projects: everything settles back into the card, on one calm spring. The 3D view rides in
+     its own layer again, so the rover stays solid while the page shrinks around it and the card appears underneath. */
   async function leave(){if(busy||menuOpen||current!=='dl')return;busy=true;
-    const o=page,n=pp,Dur=reduce?1:820,pw=o.querySelector('.pw'),cT=card.querySelector('.pj-t'),fromSel=mode==='select';
-    DROP.hide();LBL='Projects';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});setHot(null);tags.classList.remove('on');hud.classList.remove('on');
+    const o=page,n=pp,Z=SPR.unzoom,Dur=reduce?1:Z.ms,pw=o.querySelector('.pw'),cT=card.querySelector('.pj-t'),fromSel=mode==='select';
+    DROP.hide();LBL='Projects';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});setHot(null);tags.classList.remove('on');hud.classList.remove('on');cardsOut();
     n.style.zIndex=1;n.classList.add('warm');n.scrollTop=saved;o.style.zIndex=3;
     if(reduce){o.classList.remove('active');n.classList.add('active');n.classList.remove('warm');n.style.zIndex=o.style.zIndex='';current='projects';reset();PROJ.prep(n);busy=false;return}
-    const cr=card.getBoundingClientRect(),cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect(),tf=selT.getBoundingClientRect();
+    const cr=card.getBoundingClientRect(),cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect(),tf=selT.getBoundingClientRect(),full={top:0,left:0,right:innerWidth,bottom:innerHeight};
     const fs=parseFloat(getComputedStyle(cT).fontSize)/parseFloat(getComputedStyle(selT).fontSize);
     card.style.opacity='0';const d=D();
-    if(d){d.keep(Dur*1.4);d.go('card',{dur:Dur*1.05,goal:d.cardPose(cs),ease:k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2})}
+    fly.classList.add('on');fly.style.clipPath=insR(full,0);
+    if(d){if(TIER.t>=1)d.lowRes(Dur+300);d.mount(fly);d.keep(Dur+700);d.go('card',{dur:Dur,goal:{...d.cardPose(cs),mV:-1.3,lV:-1.5,lP:0,pad:-1.2,floor:-1},ease:Z.f})}
     const skin=document.createElement('div');skin.className='skin';Object.assign(skin.style,{top:o.scrollTop+'px',bottom:'auto',height:innerHeight+'px'});pw.appendChild(skin);
-    const full={top:0,left:0,right:innerWidth,bottom:innerHeight},ins=(r,rad)=>`inset(${r.top.toFixed(1)}px ${(innerWidth-r.right).toFixed(1)}px ${(innerHeight-r.bottom).toFixed(1)}px ${r.left.toFixed(1)}px round ${rad}px)`;
-    const clip=o.animate([{clipPath:ins(full,0)},{clipPath:ins(cr,30)}],{duration:Dur,easing:SHUT,fill:'both'});
-    skin.animate([{opacity:0},{opacity:0,offset:.15},{opacity:1,offset:.7},{opacity:1}],{duration:Dur,fill:'both'});
-    const fade=[...sel.querySelectorAll('.sel-k,.sel-s,.pk-l,.sel-help'),...o.querySelectorAll('.dl-story,.dl-ttl,.dl-cue')];
-    fade.forEach(el=>el.animate([{opacity:getComputedStyle(el).opacity},{opacity:0}],{duration:200,fill:'forwards'}));
-    if(fromSel)selT.animate([{transform:'none'},{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${fs.toFixed(4)})`}],{duration:Dur,easing:SHUT,fill:'both'});
+    const opt={duration:Dur,easing:Z.e,fill:'both'},clipK=[{clipPath:insR(full,0)},{clipPath:insR(cr,30)}];
+    const clip=o.animate(clipK,opt);fly.animate(clipK,opt);
+    skin.animate([{opacity:0},{opacity:0,offset:.2},{opacity:1,offset:.75},{opacity:1}],{duration:Dur,fill:'both'});
+    const fade=[...sel.querySelectorAll('.sel-k,.sel-s,.pk-l,.sel-help'),...o.querySelectorAll('.dl-story,.dl-ttl,.dl-cue,.dl-cards')];
+    fade.forEach(el=>el.animate([{opacity:getComputedStyle(el).opacity},{opacity:0}],{duration:180,fill:'forwards'}));
+    if(fromSel)selT.animate([{transform:'none'},{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${fs.toFixed(4)})`}],opt);
     else selT.animate([{opacity:0},{opacity:0}],{duration:Dur,fill:'both'});
-    n.style.transformOrigin='50% 50%';n.animate([{transform:'scale(.93)'},{transform:'none'}],{duration:Dur,easing:OUT,fill:'both'});
-    dimEl.animate([{opacity:.55},{opacity:0}],{duration:Dur*.8,easing:'linear',fill:'both'});
-    later(Dur*.78,()=>{card.style.opacity='';cT.style.visibility='';o.animate([{opacity:1},{opacity:0}],{duration:Dur*.22,easing:'linear',fill:'forwards'})});
+    n.style.transformOrigin='50% 50%';n.animate([{transform:'scale(.94)'},{transform:'none'}],opt);
+    dimEl.animate([{opacity:.6},{opacity:0}],{duration:Dur,easing:Z.e,fill:'both'});
+    later(Dur*.74,()=>{card.style.opacity='';cT.style.visibility='';o.animate([{opacity:1},{opacity:0}],{duration:Dur*.26,easing:'linear',fill:'forwards'})});
     await clip.finished.catch(()=>{});
     if(d){d.mount(cslot);d.release();d.go('card',{dur:0})}
+    fly.getAnimations().forEach(a=>a.cancel());fly.classList.remove('on');fly.style.clipPath='';
     [o,n,selT,dimEl].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());Object.assign(el.style,{transform:'',transformOrigin:'',clipPath:'',zIndex:'',opacity:''})});
     fade.forEach(el=>el.getAnimations().forEach(a=>a.cancel()));
     skin.remove();o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='projects';reset();busy=false;PROJ.vis();card.focus({preventScroll:true,focusVisible:false})}
@@ -1927,6 +2002,7 @@ const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),c
   /* pick screen -> a story (or story -> another story): the others fall back and fade, the one you picked takes the screen */
   async function pick(which){if(busy||menuOpen||current!=='dl'||which===mode||!NAME[which])return;busy=true;
     const Dur=reduce?1:1150,prev=mode,st=page.querySelector(`.dl-story[data-for="${which}"]`);setHot(null);tags.classList.remove('on');hud.classList.remove('on');
+    cardsOut();
     if(prev!=='select'){const old=page.querySelector(`.dl-story[data-for="${prev}"]`);
       await old.animate([{opacity:1},{opacity:0}],{duration:reduce?1:220,fill:'forwards'}).finished.catch(()=>{});old.getAnimations().forEach(a=>a.cancel())}
     setMode(which);page.scrollTop=0;
@@ -1937,7 +2013,7 @@ const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),c
   /* a story -> the pick screen */
   async function unpick(){if(busy||menuOpen||current!=='dl'||mode==='select')return;busy=true;
     const Dur=reduce?1:1050,st=page.querySelector(`.dl-story[data-for="${mode}"]`);tags.classList.remove('on');hud.classList.remove('on');
-    LBL='DataLink Rover';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});DROP.tip('Projects');DROP.hop();
+    LBL='DataLink Rover';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});DROP.tip('Projects');DROP.hop();cardsOut();
     const d=D();if(d)d.keep(Dur+300);const done=d?d.go('select',{dur:reduce?0:Dur}):sleep(Dur);
     await st.animate([{opacity:1},{opacity:0}],{duration:reduce?1:220,fill:'forwards'}).finished.catch(()=>{});
     setMode('select');page.scrollTop=0;st.getAnimations().forEach(a=>a.cancel());
@@ -1952,7 +2028,7 @@ const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),c
 /* ---------- boot ---------- */
 /* glass that bends what is behind it: project cards and the details sheet, and on the full tier the story cards over the 3D model */
 document.querySelectorAll('.pj.lq').forEach(el=>LQ.watch(el,{tier:1,sc:46,blur:3}));
-document.querySelectorAll('.sc.lq').forEach(el=>LQ.watch(el,{tier:0,sc:42,blur:10,sat:1.6}));
+document.querySelectorAll('.sc.lq').forEach(el=>LQ.watch(el,{tier:1,sc:56,blur:3,sat:1.75}));
 LQ.watch($('.sh'),{tier:1,sc:50,blur:6});
 layout();LIGHT.start();LIGHT.setGeo();LIGHT.resize();layKey=innerWidth+'x'+innerHeight+'@'+(devicePixelRatio||1);
 TIER.on(()=>LIGHT.resize());

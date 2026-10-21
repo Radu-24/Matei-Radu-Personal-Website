@@ -2,7 +2,7 @@
    project page.
    The two models are real: the rover is built part by part to real dimensions (T101 frame, printed plate, Pi 5, Nano,
    sensors, cameras, fibre converter) and the controller comes straight from its CAD file. Both ship as packed data
-   (dl-rover.js, dl-remote.js) with baked occlusion and one texture atlas for the board tops and labels.
+   (assets/models/rover.js, remote.js) with baked occlusion and one texture atlas for the board tops and labels.
    One flat state object describes the whole picture (camera, objects, explode, focus, effects). Modes and the scroll
    position only decide the state the picture eases toward; a frame is drawn only while that state, the size, the pointer
    or a running effect changes, and at 30 fps on the lighter quality tiers. */
@@ -31,25 +31,32 @@ const fitD=(r,fov,fill)=>{const f=(H/2)/tanH(fov),m=Math.min(W,H);return f*2*r/(
 
 /* ---------- models ---------- */
 let rover=null,remote=null,link=null,floorM=null,padR=null,padM=null,lights={},atlas=null;
+const CT={};   /* on a tall screen: where each part's card starts (fraction of the height), so the part can sit above it */
 const v3=()=>new T.Vector3();
 function partsOf(root){const out=[];root.children.forEach(g=>{if(g.userData&&g.userData.key)out.push(g)});return out}
 /* every part gets its own copies of its materials, so it can be dimmed or faded on its own */
 function ownMaterials(part){const map=new Map(),list=[];
-  part.traverse(o=>{if(!o.isMesh)return;const one=m=>{if(!map.has(m)){const c=m.clone();map.set(m,c);list.push({m:c,c:c.color.clone(),e:c.emissiveIntensity||0,o:c.opacity,keepT:!!m.userData.keepT})}return map.get(m)};
+  part.traverse(o=>{if(!o.isMesh)return;const one=m=>{if(!map.has(m)){const c=m.clone();map.set(m,c);list.push({m:c,c:c.color.clone(),e:c.emissiveIntensity||0,o:c.opacity,env:c.envMapIntensity??1,keepT:!!m.userData.keepT})}return map.get(m)};
     o.material=Array.isArray(o.material)?o.material.map(one):one(o.material)});
   part.userData.mats=list;part.userData.lastD=-1;part.userData.lastV=-1}
 function shade(part,d,vis){const u=part.userData;if(Math.abs(u.lastD-d)<.003&&Math.abs(u.lastV-vis)<.003)return;u.lastD=d;u.lastV=vis;
-  const k=1-.8*d,op=vis*(1-.8*d);for(const x of u.mats){x.m.color.copy(x.c).multiplyScalar(k);if(x.m.emissive&&!x.keepT)x.m.emissiveIntensity=x.e*(1-.7*d);
-    if(x.keepT)continue;const tr=op<.995;if(x.m.transparent!==tr){x.m.transparent=tr;x.m.needsUpdate=true}x.m.opacity=x.o*op;x.m.depthWrite=op>.6}}
+  /* dimmed parts lose their reflections too (a dark part that still mirrors the studio lights reads as lit); the screen keeps
+     its own glow (driven elsewhere) but fades with the rest */
+  const k=1-.8*d,op=vis*(1-.8*d);for(const x of u.mats){x.m.color.copy(x.c).multiplyScalar(k);x.m.envMapIntensity=x.env*k;if(x.m.emissive&&!x.keepT)x.m.emissiveIntensity=x.e*(1-.7*d);
+    const tr=op<.995;if(x.m.transparent!==tr){x.m.transparent=tr;x.m.needsUpdate=true}x.m.opacity=x.o*op;x.m.depthWrite=op>.6}}
 /* centre and radius of a group of parts with everything exploded, in the model's own frame */
 function stopBox(root,keys,ex=1){const b=new T.Box3(),tmp=new T.Box3();
   root.updateMatrixWorld(true);const inv=root.matrixWorld.clone().invert();
   keys.forEach(k=>{const g=root.userData.parts[k];if(!g)return;const keep=g.position.clone();g.position.copy(g.userData.base).addScaledVector(g.userData.off,ex);g.updateMatrixWorld(true);
     g.traverse(o=>{if(o.isMesh&&o.visible&&!o.isInstancedMesh){o.geometry.computeBoundingBox();tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld).applyMatrix4(inv);b.union(tmp)}});g.position.copy(keep)});
-  root.updateMatrixWorld(true);const c=b.getCenter(v3()),s=b.getSize(v3());return{c,r:Math.max(.2,s.length()/2)}}
+  root.updateMatrixWorld(true);const c=b.getCenter(v3()),s=b.getSize(v3());return{c,r:Math.max(.2,s.length()/2),lo:b.min.clone(),hi:b.max.clone()}}
+/* where a stop's label points, taken apart (t) and put together (t0): the middle of its parts, or of the parts in s.tag,
+   or the point s.at inside that box (fractions of its size) */
+function tagPts(root,s){const k=s.tag||s.frame||s.parts,f=s.at||[.5,.5,.5],p=b=>new T.Vector3(b.lo.x+(b.hi.x-b.lo.x)*f[0],b.lo.y+(b.hi.y-b.lo.y)*f[1],b.lo.z+(b.hi.z-b.lo.z)*f[2]);
+  s.t=p(stopBox(root,k));s.t0=p(stopBox(root,k,0))}
 
 /* materials by class; every mesh carries its colour (with baked occlusion) per vertex, and board tops / labels sample the atlas */
-const MP={pla:[.6,0,.85],plastic:[.42,0,1],rubber:[.78,0,.7],pcb:[.34,0,1],metal:[.34,.88,1.15],satin:[.42,.8,1.1],gold:[.28,.95,1.1],glass:[.06,0,1.5],label:[.48,0,.9]};
+const MP={pla:[.6,0,.85],plastic:[.42,0,1],blade:[.34,0,1.15],rubber:[.78,0,.7],pcb:[.34,0,1],metal:[.34,.88,1.15],satin:[.42,.8,1.1],gold:[.28,.95,1.1],glass:[.06,0,1.5],label:[.48,0,.9]};
 const matCache=new Map();
 function matFor(cls,uv){const key=cls+(uv?'+t':'');if(matCache.has(key))return matCache.get(key);let m;
   if(cls==='emit')m=new T.MeshBasicMaterial({vertexColors:true,toneMapped:false});
@@ -60,13 +67,32 @@ function matFor(cls,uv){const key=cls+(uv?'+t':'');if(matCache.has(key))return m
    per mesh: int16 positions (x, y, z runs), then either one byte of occlusion per vertex (the mesh has one colour) or sRGB
    colours, then optional atlas uv (uint16), then indices. Normals are rebuilt here (vertices are already split at sharp edges). */
 let LUT=null;
-async function unpack(M){
+async function unpack(M,slow){
   if(!M||!M.data)throw new Error('no model data');
   const s=atob(M.data),u8=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u8[i]=s.charCodeAt(i);
   let buf=u8.buffer;
   if(M.gz){if(typeof DecompressionStream!=='function')throw new Error('this browser cannot unpack the model (no DecompressionStream)');
     buf=await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()}
   if(!LUT){LUT=new Float32Array(256);for(let i=0;i<256;i++){const c=i/255;LUT[i]=c<=.04045?c/12.92:Math.pow((c+.055)/1.055,2.4)}}
+  return M.v>=4?unpack4(M,new Uint8Array(buf),slow):unpack3(M,buf)}
+/* v4: delta-coded varints in triangle order (see pack.py) */
+async function unpack4(M,B,slow){let p=0;const out=[];
+  const vint=()=>{let x=0,sh=0,b;do{b=B[p++];x+=(b&127)*2**sh;sh+=7}while(b&128);return x};
+  for(const m of M.meshes){const n=m.v,P=new Float32Array(n*3),C=new Float32Array(n*3);
+    for(let c=0;c<3;c++){const lo=m.lo[c],sc=m.s||(m.hi[c]-m.lo[c])/65534,o=m.s?0:32767;let q=0;
+      for(let k=0;k<n;k++){const z=vint();q+=(z%2?-(z+1)/2:z/2);P[k*3+c]=lo+(q+o)*sc}}
+    if(m.c){const base=[LUT[m.c[0]],LUT[m.c[1]],LUT[m.c[2]]];let a=0;
+      for(let k=0;k<n;k++){a=(a+B[p++])&255;const f=a/255;C[k*3]=base[0]*f;C[k*3+1]=base[1]*f;C[k*3+2]=base[2]*f}}
+    else for(let c=0;c<3;c++){let a=0;for(let k=0;k<n;k++){a=(a+B[p++])&255;C[k*3+c]=LUT[a]}}
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(P,3));g.setAttribute('color',new T.BufferAttribute(C,3));
+    if(m.uv){const U=new Float32Array(n*2);for(let c=0;c<2;c++){let q=0;for(let k=0;k<n;k++){const z=vint();q+=(z%2?-(z+1)/2:z/2);U[k*2+c]=q/65535}}
+      g.setAttribute('uv',new T.BufferAttribute(U,2))}
+    const I=n>65535?new Uint32Array(m.i):new Uint16Array(m.i);let hw=0;
+    for(let k=0;k<m.i;k++){const cd=vint();I[k]=hw-cd;if(cd===0)hw++}
+    g.setIndex(new T.BufferAttribute(I,1));g.computeVertexNormals();
+    out.push({name:m.n,part:m.p,mat:m.m,uv:!!m.uv,g});if(slow)await new Promise(r=>setTimeout(r,0))}
+  return out}
+function unpack3(M,buf){
   let off=0;const al=()=>{off=(off+3)&~3},out=[];
   for(const p of M.meshes){const n=p.v,q=new Int16Array(buf,off,n*3);off+=n*6;al();
     const nc=p.c?1:3,cq=new Uint8Array(buf,off,n*nc);off+=n*nc;al();
@@ -88,9 +114,13 @@ function dataScript(src,glob,ev){return new Promise((res,rej)=>{if(window[glob])
 
 /* ---------- the rover ---------- */
 /* explode offsets (scene units) and delays, per part */
-const RV_PARTS={trackL:[.8,0,0,0],trackR:[-.8,0,0,0],motors:[0,-.45,0,.05],chassis:[0,-.12,0,.08],plate:[0,.38,0,.12],sensors:[0,.6,0,.16],
-  battery:[-.42,.8,-.12,.18],buck:[-.62,1.2,.02,.22],nano:[-.5,1.46,-.42,.24],pi:[-.16,.98,.46,.2],driver:[.56,.92,.12,.22],
-  fibre:[.66,1.04,-.55,.26],fcable:[.66,1.04,-.55,.26],mast:[.08,1.3,-.04,.28],head:[.08,1.64,.04,.32],fpv:[.1,.66,.6,.28]};
+/* the printed chassis sits on the T101: taken apart, the motors drop, the battery box lifts off the deck and the cells slide out of
+   its open right side (as they do when the rover is switched off); the power boards from under the plate float between, and the
+   plate lifts off the box with the boards above it */
+const RV_PARTS={trackL:[.8,0,0,0],trackR:[-.8,0,0,0],motors:[0,-.42,0,.05],chassis:[0,0,0,.08],battery:[0,.24,0,.1],
+  drv:[0,.6,.5,.14],cells:[-.98,.26,0,.13],power:[0,.5,-.25,.15],plate:[0,.95,0,.16],
+  sensors:[0,1.15,.1,.2],fpv:[.1,1.21,.6,.3],pi:[-.16,1.45,.46,.22],driver:[.56,1.41,.12,.24],fibre:[.66,1.5,-.55,.28],fcable:[.66,1.5,-.55,.28],
+  buck:[-.62,1.63,.02,.26],mast:[.08,1.71,-.04,.3],nano:[-.5,1.83,-.42,.27],head:[.08,1.99,.04,.34]};
 function buildRover(meshes,M){
   const U=M.unit,tr=M.track,root=new T.Group(),parts={};root.userData.parts=parts;
   Object.entries(RV_PARTS).forEach(([key,o])=>{const g=new T.Group();g.userData={key,off:new T.Vector3(o[0],o[1],o[2]),base:new T.Vector3(),delay:o[3]};parts[key]=g;root.add(g)});
@@ -123,14 +153,17 @@ function buildRover(meshes,M){
   const shadow=blob(2.3,2.6,.6);root.add(shadow);
   Object.values(parts).forEach(g=>{g.userData.base.copy(g.position);ownMaterials(g)});
   const ledMats=new Set();emits.forEach(o=>ledMats.add(o.material));
-  const STOPS=[{key:'tracks',parts:['trackL','trackR','motors'],frame:['trackL','motors'],az:1.25,el:.28,fill:.6},
-    {key:'chassis',parts:['chassis','plate'],az:.7,el:.5,fill:.62},{key:'pi',parts:['pi'],az:-.5,el:.9,fill:.5},
-    {key:'control',parts:['nano','driver'],az:.15,el:.8,fill:.62},{key:'sensors',parts:['sensors'],az:.35,el:.32,fill:.62},
-    {key:'cameras',parts:['mast','head','fpv'],az:-.3,el:.22,fill:.62},{key:'power',parts:['battery','buck'],az:-1.0,el:.55,fill:.58},
+  /* the story's stops: parts = what lights up, frame = what the camera fits (default: parts), tag / at = where the label points
+     (see tagPts), az / el / fill = the camera's angle and how much of the screen the parts fill */
+  const STOPS=[{key:'tracks',parts:['trackL','trackR','motors'],frame:['trackL','motors'],tag:['trackR','motors'],az:1.25,el:.28,fill:.6},
+    {key:'chassis',parts:['chassis','battery','plate'],tag:['battery'],az:.7,el:.5,fill:.62},{key:'pi',parts:['pi'],az:-.5,el:.9,fill:.5},
+    {key:'control',parts:['nano','driver','drv'],tag:['nano'],az:.15,el:.8,fill:.62},{key:'sensors',parts:['sensors'],at:[.5,.5,1],az:.35,el:.32,fill:.62},
+    {key:'cameras',parts:['mast','head','fpv'],az:-.3,el:.22,fill:.62},{key:'power',parts:['cells','power','buck'],frame:['battery','cells','power'],tag:['cells'],az:-.75,el:.42,fill:.6},
     {key:'fibre',parts:['fibre'],az:2.55,el:.42,fill:.55}];
-  const r={root,parts,STOPS,placeTreads,pivot,shadow,ledMats:[...ledMats],trd:0,trdDrawn:-1,pan:0};
+  const r={kind:'rover',root,parts,STOPS,placeTreads,pivot,shadow,ledMats:[...ledMats],trd:0,trdDrawn:-1,pan:0,
+    ov:{py:.41,mul:1.22}};   // on a wide screen the tall taken-apart stack sits smaller and higher, above the card
   r.stopOf={};STOPS.forEach((s,i)=>s.parts.forEach(p=>r.stopOf[p]=i));
-  r.measure=()=>{STOPS.forEach(s=>{Object.assign(s,stopBox(root,s.frame||s.parts));s.c0=stopBox(root,s.frame||s.parts,0).c});
+  r.measure=()=>{STOPS.forEach(s=>{Object.assign(s,stopBox(root,s.frame||s.parts));s.c0=stopBox(root,s.frame||s.parts,0).c;tagPts(root,s)});
     r.all=stopBox(root,Object.keys(parts).filter(k=>k!=='fcable'));r.body=stopBox(root,Object.keys(parts).filter(k=>k!=='fcable'),0)};
   r.measure();
   return r}
@@ -140,7 +173,7 @@ function blob(w,d,a){const c=document.createElement('canvas');c.width=c.height=1
   const m=new T.Mesh(new T.PlaneGeometry(w,d),new T.MeshBasicMaterial({map:new T.CanvasTexture(c),transparent:true,depthWrite:false}));m.rotation.x=-PI/2;m.position.y=.003;m.renderOrder=-1;return m}
 
 /* ---------- the controller, from its CAD file ---------- */
-const REMOTE_GROUPS={shell:[0,1.9,0],screen:[0,1.38,.02],sticks:[0,.98,.1],switch:[.45,.62,-.35],pi:[0,.48,0],power:[0,.06,0],mid:[0,-.42,0],batt:[0,-.12,.4],bottom:[0,-.95,0]};
+const REMOTE_GROUPS={shell:[0,1.9,0],screen:[0,1.38,.02],sticks:[0,.98,.1],switch:[.45,.62,-.35],pi:[0,.48,0],elec:[0,.24,0],power:[0,.06,0],mid:[0,-.42,0],batt:[0,-.12,.4],bottom:[0,-.95,0]};
 /* split a geometry in two by the side (x) its triangles sit on: the two battery holders move apart */
 function splitX(g){const P=g.attributes.position.array,I=g.index.array,sides=[[],[]];
   for(let t=0;t<I.length;t+=3){const x=(P[I[t]*3]+P[I[t+1]*3]+P[I[t+2]*3])/3;sides[x<0?0:1].push(I[t],I[t+1],I[t+2])}
@@ -153,9 +186,9 @@ function buildRemote(meshes,M){
   for(const m of meshes){const g=parts[m.part];if(!g)continue;
     if(m.part==='batt'){splitX(m.g).forEach((h,i)=>battSide[i].add(new T.Mesh(h,matFor(m.mat,m.uv))));continue}
     const o=new T.Mesh(m.g,matFor(m.mat,m.uv));g.add(o);
-    if(m.part==='mid'&&m.mat==='glass')fanBlades=o;if(m.part==='mid'&&m.mat==='emit')fanLeds.push(o)}
+    if(m.mat==='blade')fanBlades=o;if(m.part==='power'&&m.mat==='emit')fanLeds.push(o)}
   /* the fan's blades spin on its hub */
-  let fan=null;if(fanBlades&&M.fan){const c=M.fan.map(x=>x*U);fan=new T.Group();fan.position.set(c[0],0,c[2]);parts.mid.add(fan);fanBlades.position.set(-c[0],0,-c[2]);fan.add(fanBlades)}
+  let fan=null;if(fanBlades&&M.fan){const c=M.fan.map(x=>x*U),g=fanBlades.parent;fan=new T.Group();fan.position.set(c[0],0,c[2]);g.add(fan);fanBlades.position.set(-c[0],0,-c[2]);fan.add(fanBlades)}
   /* the screen: his own HUD (DataLink Rover, live video, picture-in-picture, proximity, battery), on the glass */
   const sr=M.screen;let scr=null;
   if(sr){const x0=sr[0]*U,x1=sr[1]*U,z0=sr[2]*U,z1=sr[3]*U,y=sr[4]*U,aw=1.542,ah=.859;   /* 7" panel: 154.2 x 85.9 mm active area */
@@ -164,10 +197,10 @@ function buildRemote(meshes,M){
     scr=new T.Mesh(new T.PlaneGeometry(aw,ah),mat);scr.rotation.x=-PI/2;scr.position.set((x0+x1)/2,y+.0015,(z0+z1)/2);parts.screen.add(scr)}
   Object.values(parts).forEach(g=>ownMaterials(g));
   const scrMat=scr?scr.material:null;
-  const STOPS=[{key:'shell',parts:['shell'],az:.3,el:.55,fill:.78},{key:'screen',parts:['screen'],az:-.25,el:.78,fill:.6},{key:'sticks',parts:['sticks'],az:.35,el:.5,fill:.62},{key:'switch',parts:['switch'],az:1.0,el:.3},
-    {key:'pi',parts:['pi'],az:.55,el:-.35,fill:.55},{key:'power',parts:['power'],az:-.55,el:.12},{key:'batt',parts:['batt'],az:-1.05,el:.28,fill:.62},{key:'covers',parts:['mid','bottom'],az:.25,el:-.5,fill:.55}];
-  const r={root,parts,STOPS,inner,screen:scr,scrMat,battSide,fan,fanLeds,shadow:blob(3.2,2.8,.45)};r.stopOf={};STOPS.forEach((s,i)=>s.parts.forEach(p=>r.stopOf[p]=i));
-  scene.add(r.shadow);r.measure=()=>{STOPS.forEach(s=>{Object.assign(s,stopBox(root,s.parts));s.c0=stopBox(root,s.parts,0).c});r.all=stopBox(root,Object.keys(parts))};r.measure();
+  const STOPS=[{key:'shell',parts:['shell'],az:.3,el:.55,fill:.78},{key:'screen',parts:['screen'],az:-.25,el:.78,fill:.6},{key:'sticks',parts:['sticks'],az:.35,el:.5,fill:.62},{key:'switch',parts:['switch'],az:1.0,el:.3,fill:.42,dmin:.7},
+    {key:'pi',parts:['pi'],az:.55,el:-.78,fill:.55},{key:'power',parts:['power','elec'],az:-.62,el:-.55,fill:.74},{key:'batt',parts:['batt'],az:-1.05,el:.28,fill:.62},{key:'covers',parts:['mid','bottom'],az:.25,el:-.85,fill:.58}];
+  const r={kind:'remote',root,parts,STOPS,inner,screen:scr,scrMat,battSide,fan,fanLeds,shadow:blob(3.2,2.8,.45)};r.stopOf={};STOPS.forEach((s,i)=>s.parts.forEach(p=>r.stopOf[p]=i));
+  r.measure=()=>{STOPS.forEach(s=>{Object.assign(s,stopBox(root,s.parts));s.c0=stopBox(root,s.parts,0).c;tagPts(root,s)});r.all=stopBox(root,Object.keys(parts))};r.measure();
   return r}
 
 /* his HUD, redrawn from the screenshots in the thesis (800 x 480, drawn at 1.5x): dark, cyan accents */
@@ -252,9 +285,11 @@ function studio(){const s=new T.Scene();const room=new T.Mesh(new T.BoxGeometry(
 /* ---------- poses: what the picture should look like for a mode (and a scroll position) ---------- */
 function stopWorld(obj,s,yaw,x,y,z,pitch=0,sc=1){const c=s.c.clone();c.applyEuler(new T.Euler(pitch,yaw,0,'YXZ')).multiplyScalar(sc);return c.add(new T.Vector3(x,y,z))}
 function focusCam(P,obj,k,base,port){const s=obj.STOPS[k],sc=base.s||1,wp=stopWorld(obj,s,base.yaw,base.x,base.y,base.z,base.pitch||0,sc);
-  const d=Math.max(1.6,fitD(s.r*sc,28,(s.fill||.4)*(port?1.2:1)));camAt(P,wp.x,wp.y,wp.z,base.yaw+s.az,s.el,d,28);P.px=port?.5:.64;P.py=port?.34:.5}
-function overviewCam(P,obj,base,port,mul=1){const sc=base.s||1,c=stopWorld(obj,obj.all,base.yaw,base.x,base.y,base.z,base.pitch||0,sc);
-  camAt(P,c.x,c.y,c.z,base.az,base.el,fitD(obj.all.r*sc,28,port?1.02:.98)*mul,28);P.px=.5;P.py=port?.46:.5}
+  let fill=(s.fill||.4)*(port?1.2:1),py=port?.34:.5;const ct=port&&CT[obj.kind]&&CT[obj.kind][k];
+  if(ct){const top=76,bot=ct*H-10;fill=clamp((bot-top)*.94/Math.min(W,H),.36,fill);py=clamp((top+bot)/2/H,.2,.34)}   // between the island and the card
+  const d=Math.max(s.dmin||1.6,fitD(s.r*sc,28,fill));camAt(P,wp.x,wp.y,wp.z,base.yaw+s.az,s.el,d,28);P.px=port?.5:.64;P.py=py}
+function overviewCam(P,obj,base,port,mul=1){const sc=base.s||1,c=stopWorld(obj,obj.all,base.yaw,base.x,base.y,base.z,base.pitch||0,sc),ov=(!port&&obj.ov)||{};
+  camAt(P,c.x,c.y,c.z,base.az,base.el,fitD(obj.all.r*sc,28,port?1.02:.98)*mul*(ov.mul||1),28);P.px=.5;P.py=port?.46:(ov.py||.5)}
 function storyPose(P,obj,base,heroCam,port,pre){
   const s=story,n=obj.STOPS.length,O=blank(),A=blank(),B=blank();
   overviewCam(O,obj,base,port);
@@ -344,7 +379,8 @@ function apply(dt){
   [padR,padM].forEach((p,i)=>{p.visible=c.pad>.004;const u=p.material.uniforms;u.uV.value=c.pad;u.uT.value=vt;u.uHot.value=i?hov.m:hov.r});
   padR.position.set(c.rX,.004,c.rZ);padM.position.set(c.mX,.004,c.mZ);
   floorM.visible=c.floor>.004;floorM.material.opacity=c.floor;
-  lights.rimW.intensity=2.2*c.warm;lights.rimC.intensity=1.5*c.cool}
+  lights.rimW.intensity=2.2*c.warm;lights.rimC.intensity=1.5*c.cool;
+  const cd=Math.hypot(c.cx-c.tx,c.cy-c.ty,c.cz-c.tz)||1;lights.under.intensity=1.15*clamp((c.ty-c.cy)/cd*2.4)}
 
 /* ---------- loop ---------- */
 function goalNow(){return fixedGoal||pose()}
@@ -358,7 +394,9 @@ function busyAnim(){
   return Math.abs(hov.r-hov.rT)+Math.abs(hov.m-hov.mT)+Math.abs(hov.l-hov.lT)>.002}
 /* transitions follow real elapsed time (so they stay in step with the page's own animations even when frames are slow);
    smoothing and effects use a capped step */
-function frame(ts){raf=0;const raw=last?(ts-last)/1000:0;last=ts;const dt=Math.min(.05,raw)*tscale,dtT=Math.min(.5,raw)*tscale;vt+=dtT;
+let xtra=0;   /* test hook: time added to the next frame while the clock is frozen */
+function frame(ts){raf=0;const raw=last?(ts-last)/1000:0;last=ts;const dt=Math.min(.05,raw)*tscale+Math.min(.05,xtra),dtT=Math.min(.5,raw)*tscale+xtra;xtra=0;vt+=dtT;
+  if(lowUntil&&vt>=lowUntil){lowUntil=0;buffer()}
   const kh=1-Math.exp(-dt*7);hov.r+=(hov.rT-hov.r)*kh;hov.m+=(hov.mT-hov.m)*kh;hov.l+=(hov.lT-hov.l)*kh;hov.cx+=(hov.cxT-hov.cx)*kh;hov.cy+=(hov.cyT-hov.cy)*kh;
   if(cur.rTurn>.001)spinR+=dt*(mode==='select'?.32+hov.r*.5:.3+hov.r*.18);
   if(rover&&(mode==='card'||mode==='select'))rover.trd+=dt*hov.r*60;
@@ -366,7 +404,7 @@ function frame(ts){raf=0;const raw=last?(ts-last)/1000:0;last=ts;const dt=Math.m
   if(tw){tw.k=clamp(tw.k+dtT*1000/tw.dur);const e=tw.ease(tw.k);for(const k of KEYS)cur[k]=lerp(tw.from[k],g[k],e);moving=true;
     if(tw.k>=1){const r=tw.res;tw=null;r&&r()}}
   else if(!settled(g)){const a=1-Math.exp(-dt*10);for(const k of KEYS)cur[k]+=(g[k]-cur[k])*a;moving=true}
-  const anim=busyAnim(),show=shown||vt<force;
+  const anim=busyAnim(),show=shown||vt<force;if(moving)lastMove=vt;if(show&&(moving||anim))watchLod(raw);
   if(show&&ren&&(moving||anim||dirty)&&(tier===0||moving||dirty||ts-lastDraw>31||mode==='card'&&hov.r>.02)){
     const p0=performance.now();apply(dt);ren.render(scene,cam);lastDraw=ts;dirty=false;for(const f of frameSubs)f();perf.ms+=performance.now()-p0;perf.n++}
   if(show&&(moving||anim||dirty||vt<force))raf=requestAnimationFrame(frame);else last=0}
@@ -374,7 +412,9 @@ const wake=()=>{if(!raf&&(shown||vt<force))raf=requestAnimationFrame(frame)};
 
 /* ---------- size ---------- */
 function frameTo(w,h){w=Math.max(1,Math.round(w));h=Math.max(1,Math.round(h));if(!ren||(w===W&&h===H))return;W=w;H=h;dirty=true;placeLink();wake()}
-function buffer(){if(!ren||!W)return;const caps=[2,1.5,1.25,1],pr=Math.min(devicePixelRatio||1,caps[tier]||1),bw=Math.round(W*pr),bh=Math.round(H*pr);
+/* during big page transitions the view can draw at 1x for a moment (fewer pixels while everything moves), then sharpens */
+let lowUntil=0;
+function buffer(){if(!ren||!W)return;const caps=[2,1.5,1.25,1];let pr=Math.min(devicePixelRatio||1,caps[tier]||1);if(vt<lowUntil)pr=Math.min(pr,1);const bw=Math.round(W*pr),bh=Math.round(H*pr);
   if(bw===BW&&bh===BH)return;BW=bw;BH=bh;if(ren.getPixelRatio()!==pr)ren.setPixelRatio(pr);ren.setSize(W,H,false);dirty=true;wake()}
 function setSize(w,h,now){frameTo(w,h);clearTimeout(bufT);if(now||!BW)buffer();else bufT=setTimeout(buffer,160)}
 let linkKey='';
@@ -384,6 +424,37 @@ function placeLink(){if(!rover)return;const port=W/H<.9,k=port?'p':'l';if(k===li
   if(!port){A=V(P.mX+.1,P.mY+1.2,P.mZ-.35);B=V(P.rX,top,P.rZ);C=A.clone().add(B).multiplyScalar(.5);C.y+=1.45}
   else{A=V(P.mX+.95,P.mY-.45,P.mZ+.6);B=V(P.rX+.5,top*.92,P.rZ-.3);C=A.clone().add(B).multiplyScalar(.5);C.x+=2.3}
   link=buildLink(A,C,B);scene.add(link.g);dirty=true}
+
+/* ---------- detail levels ----------
+   The page starts with the light models. On capable devices (quality tiers 0 and 1) the ultra-detailed ones (rover-hi.js,
+   remote-hi.js, about 1.4 M triangles for the controller alone) are fetched and decoded in idle time, one mesh at a time,
+   and swapped in at a calm moment. If the device then cannot hold about 30 fps while the view moves, the light ones come back. */
+const idle=f=>('requestIdleCallback' in window)?requestIdleCallback(f,{timeout:3000}):setTimeout(f,500);
+const LOD={lo:{},hi:{},ready:{},level:'lo',watch:null,timer:0,off:false,started:false};
+function maybeHi(){if(LOD.started||LOD.off||tier>1||!remote||/[?&]lod=lo/.test(location.search))return;LOD.started=true;setTimeout(()=>idle(loadHi),1200)}
+let lastMove=0;
+async function loadHi(){
+  try{const RM=await dataScript('assets/models/rover-hi.js','DL_ROVER_HI','dl-rover-hi');const rh=buildRover(await unpack(RM,true),RM);delete window.DL_ROVER_HI;LOD.ready.rover=rh;armSwap()}
+  catch(e){console.info('DataLink: detailed rover unavailable, keeping the light one',e)}
+  await new Promise(r=>idle(r));
+  try{const MM=await dataScript('assets/models/remote-hi.js','DL_REMOTE_HI','dl-remote-hi');const mh=buildRemote(await unpack(MM,true),MM);delete window.DL_REMOTE_HI;LOD.ready.remote=mh;armSwap()}
+  catch(e){console.info('DataLink: detailed controller unavailable, keeping the light one',e)}}
+function armSwap(){if(LOD.timer)return;LOD.timer=setInterval(()=>{if(LOD.off){clearInterval(LOD.timer);LOD.timer=0;return}
+  const calm=!shown||(!tw&&vt-lastMove>.35);if(!calm)return;
+  const r=LOD.ready.rover,m=LOD.ready.remote;
+  if(r){LOD.lo.rover=rover;put('rover',r);LOD.hi.rover=r;LOD.ready.rover=null}
+  if(m){LOD.lo.remote=remote;put('remote',m);LOD.hi.remote=m;LOD.ready.remote=null}
+  if(r||m){LOD.level='hi';LOD.watch={n:0,sum:0}}
+  if(!LOD.ready.rover&&!LOD.ready.remote){clearInterval(LOD.timer);LOD.timer=0}},250)}
+/* put a model in the scene in place of the current one (keeps the camera head's turn and the tread position) */
+function put(kind,o){
+  if(kind==='rover'){const old=rover;if(old===o)return;o.pan=old.pan;o.trd=old.trd;o.trdDrawn=-1;scene.remove(old.root);scene.add(o.root);rover=o}
+  else{const old=remote;if(old===o)return;if(old){scene.remove(old.root,old.shadow)}scene.add(o.root,o.shadow);remote=o}
+  dirty=true;wake()}
+function watchLod(raw){const w=LOD.watch;if(!w||raw<=0||raw>.25)return;w.n++;w.sum+=raw;
+  if(w.n<60)return;LOD.watch=null;const avg=w.sum/w.n;
+  if(avg>(tier===0?.042:.034)){LOD.off=true;LOD.level='lo';if(LOD.lo.rover)put('rover',LOD.lo.rover);if(LOD.lo.remote)put('remote',LOD.lo.remote);
+    console.info('DataLink: back to the light models ('+Math.round(avg*1000)+' ms a frame)')}}
 
 /* ---------- init ---------- */
 function init(t){tier=t|0;if(ready)return ready;
@@ -396,19 +467,21 @@ function init(t){tier=t|0;if(ready)return ready;
     const key=new T.DirectionalLight(0xffffff,1.5);key.position.set(3,6,5);scene.add(key);
     lights.rimW=new T.DirectionalLight(0xFF9F43,2.2);lights.rimW.position.set(-4,2.5,-3);scene.add(lights.rimW);
     lights.rimC=new T.DirectionalLight(0x4DC8FF,1.5);lights.rimC.position.set(4,2.2,-4);scene.add(lights.rimC);
+    lights.under=new T.DirectionalLight(0xdfe6ff,0);lights.under.position.set(1,-4,3);scene.add(lights.under);   /* lights the undersides when the camera looks from below */
     const pm=new T.PMREMGenerator(ren);scene.environment=pm.fromScene(studio(),.035).texture;pm.dispose();
-    atlas=new T.TextureLoader().load('dl-atlas.webp',()=>{dirty=true;wake()});atlas.colorSpace=T.SRGBColorSpace;atlas.anisotropy=tier===0?8:4;
+    atlas=new T.TextureLoader().load('assets/models/atlas.webp',()=>{dirty=true;wake()});atlas.colorSpace=T.SRGBColorSpace;atlas.anisotropy=tier===0?8:4;
     padR=buildPad(0xFF9F43);padM=buildPad(0x4DC8FF);scene.add(padR,padM);
     const fc=document.createElement('canvas');fc.width=fc.height=256;const fg=fc.getContext('2d'),gr=fg.createRadialGradient(128,128,0,128,128,128);
     gr.addColorStop(0,'rgba(150,170,210,.10)');gr.addColorStop(.5,'rgba(150,170,210,.04)');gr.addColorStop(1,'rgba(150,170,210,0)');fg.fillStyle=gr;fg.fillRect(0,0,256,256);
     floorM=new T.Mesh(new T.CircleGeometry(13,64),new T.MeshBasicMaterial({map:new T.CanvasTexture(fc),transparent:true,depthWrite:false}));floorM.rotation.x=-PI/2;floorM.renderOrder=-3;scene.add(floorM);
     cv.addEventListener('webglcontextlost',e=>e.preventDefault());
     /* the rover first (the project card needs it), then the controller */
-    try{const RM=await dataScript('dl-rover.js','DL_ROVER','dl-rover');rover=buildRover(await unpack(RM),RM);scene.add(rover.root);
+    try{const RM=await dataScript('assets/models/rover.js','DL_ROVER','dl-rover');rover=buildRover(await unpack(RM),RM);scene.add(rover.root);
       const b=rover.body;R0=b.r*.98;TGT=[b.c.x,b.c.y,b.c.z]}
     catch(e){console.warn('DataLink: rover model unavailable',e);return false}
     Object.assign(cur,pose());
-    dataScript('dl-remote.js','DL_REMOTE','dl-remote').then(unpack).then(ms=>{remote=buildRemote(ms,window.DL_REMOTE);scene.add(remote.root);placeLink();dirty=true;wake();(api.onRemote||(()=>{}))()})
+    dataScript('assets/models/remote.js','DL_REMOTE','dl-remote').then(unpack).then(ms=>{remote=buildRemote(ms,window.DL_REMOTE);scene.add(remote.root,remote.shadow);placeLink();dirty=true;wake();(api.onRemote||(()=>{}))();
+        maybeHi()})
       .catch(e=>console.warn('DataLink: controller model unavailable',e));
     if(W>1)placeLink();
     return true}).catch(e=>{console.info('3D unavailable',e);return false});
@@ -422,7 +495,7 @@ const api=window.DL3D={init,
   mount(el){if(!cv)return;slot=el;if(cv.parentNode!==el)el.appendChild(cv);
     if(!ro)ro=new ResizeObserver(es=>{for(const e of es)if(e.target===slot&&cv.parentNode===slot){const r=e.contentRect;if(r.width&&r.height)setSize(r.width,r.height)}});
     ro.disconnect();ro.observe(el);const r=el.getBoundingClientRect();if(r.width&&r.height)setSize(r.width,r.height,true)},
-  setSize,setVis(v){shown=!!v;wake()},keep(ms){force=Math.max(force,vt+ms/1000);wake()},
+  setSize,setVis(v){shown=!!v;wake()},keep(ms){force=Math.max(force,vt+ms/1000);wake()},lowRes(ms){lowUntil=vt+ms/1000;buffer();wake()},
   /* go to a mode; with dur>0 the picture eases there from wherever it is now */
   go(m,{dur=900,ease=easeIO,from,goal}={}){cur.rYaw+=spinR*cur.rTurn;spinR=0;mode=m;fixedGoal=goal||null;
     const g=goalNow();cur.rYaw=g.rYaw+wrap(cur.rYaw-g.rYaw);cur.mYaw=g.mYaw+wrap(cur.mYaw-g.mYaw);
@@ -441,9 +514,10 @@ const api=window.DL3D={init,
     if(name==='remoteTop')return project(cur.mX,cur.mY+1.3*cur.mS,cur.mZ);
     if(name==='link'&&link){const p=link.curve.getPoint(.5);return project(p.x,p.y+.25,p.z)}
     const m=name.match(/^(rover|remote):(\w+)$/);if(m){const o=m[1]==='rover'?rover:remote;if(!o||!o.root.visible)return null;const s=o.STOPS.find(x=>x.key===m[2]);if(!s)return null;
-      const ex=o===rover?cur.rEx:cur.mEx,c=s.c0.clone().lerp(s.c,s5(ex));o.root.updateMatrixWorld();const w=o.root.localToWorld(c);return project(w.x,w.y,w.z)}
+      const ex=o===rover?cur.rEx:cur.mEx,c=s.t0.clone().lerp(s.t,s5(ex));o.root.updateMatrixWorld();const w=o.root.localToWorld(c);return project(w.x,w.y,w.z)}
     return null},
   stops(which){const o=which==='rover'?rover:remote;return o?o.STOPS.map(s=>s.key):[]},
+  cardTops(which,a){CT[which]=a;dirty=true;wake()},
   onFrame(f){frameSubs.push(f)},
-  setTier(t){tier=t;BW=0;buffer()},setTimeScale(k){tscale=k},_dbg:()=>({remote,rover,cur,scene,cam,T}),_perf:()=>{const r={ms:perf.ms,n:perf.n,avg:perf.n?perf.ms/perf.n:0,calls:ren.info.render.calls,tris:ren.info.render.triangles};perf.ms=perf.n=0;return r}};
+  setTier(t){tier=t;BW=0;buffer();maybeHi()},get lod(){return LOD.level},loadHi(){return loadHi()},setTimeScale(k){tscale=k},_advance(sec){xtra+=sec;dirty=true;wake()},_dbg:()=>({remote,rover,cur,scene,cam,T,LOD,tier,shown,tw}),_perf:()=>{const r={ms:perf.ms,n:perf.n,avg:perf.n?perf.ms/perf.n:0,calls:ren.info.render.calls,tris:ren.info.render.triangles};perf.ms=perf.n=0;return r}};
 })();
