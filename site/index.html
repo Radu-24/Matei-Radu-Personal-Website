@@ -1,8 +1,11 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
 <title>Radu Matei</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<meta name="description" content="Radu Matei, telecom engineer from Romania, into cybersecurity. My projects, including the DataLink Rover, the tracked robot from my thesis.">
+<meta name="theme-color" content="#05060B">
+<link rel="icon" id="tab-icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/img/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="stylesheet" href="assets/css/fonts.css">
 <style>
 /* Radu Matei, personal site: Dynamic Island prism menu + Prism dive transition.
    Performance rules: nothing full-screen is blurred or filtered; page motion uses only transform / opacity / clip-path;
@@ -32,6 +35,7 @@ button{font:inherit;color:inherit}
 /* pages that are not on screen are not styled, laid out or painted at all */
 .page:not(.active):not(.warm){content-visibility:hidden}
 .pw{position:relative;min-height:100%;background:var(--bg)}
+.p-home .pw{overflow:clip}   /* the background layers reach past the page; without this they add empty scroll below the footer */
 /* soft colour pools: radial gradients instead of blur(80px) circles (same look, no filter, no animation) */
 .pbg{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 .pbg::before,.pbg::after{content:"";position:absolute;border-radius:50%}
@@ -161,7 +165,8 @@ button{font:inherit;color:inherit}
 /* ================= HOME ================= */
 /* texture: faint light ripples (caustics, drawn once at load) and fine film grain; a soft light follows the cursor.
    Nothing moves on its own, so the GPU idles when nobody is scrolling or pointing. */
-.hbg{position:absolute;left:0;right:0;top:-10vh;bottom:-10vh;pointer-events:none;overflow:hidden}
+.hbg{position:absolute;left:0;right:0;top:-10vh;bottom:-10vh;pointer-events:none;overflow:hidden;
+  -webkit-mask-image:linear-gradient(#000 calc(100% - 45vh),transparent);mask-image:linear-gradient(#000 calc(100% - 45vh),transparent)}   /* the colour pools fade out before the page ends */
 .hbg i{position:absolute;inset:0;display:block}
 .hb-field{position:absolute;inset:0}
 /* three soft colour pools (pre-blurred gradients, never a live blur filter); they drift slowly only on the full tier */
@@ -186,6 +191,9 @@ button{font:inherit;color:inherit}
 
 .home{padding-top:15vh;padding-bottom:14vh}
 .hs{margin-top:14vh}
+.foot{margin-top:14vh;padding-top:22px;border-top:1px solid rgba(255,255,255,.08);display:grid;grid-template-columns:auto 1fr;gap:8px 40px;font-size:12.5px;line-height:1.55;color:var(--muted)}
+.foot p{margin:0;max-width:68ch}.foot .c{color:#C2C7D4;font-weight:500}.foot .cr{grid-column:2;font-family:var(--mono);font-size:11.5px;color:#5d6375}
+@media (max-width:700px){.foot{grid-template-columns:1fr}.foot .cr{grid-column:1}}
 .hh{font-size:clamp(30px,4.4vw,52px);letter-spacing:-.035em;margin:0 0 28px;line-height:1}
 
 /* ---------- liquid glass: one material for every surface ----------
@@ -665,6 +673,8 @@ button.pj{cursor:pointer}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}#stage,#island{transition-duration:.01s!important}}
 </style>
+</head>
+<body>
 
 <div id="stage"><div id="pages">
   <section class="page p-home active" id="pg-home" aria-label="Home"><div class="pw"><div class="pbg"></div>
@@ -744,6 +754,12 @@ button.pj{cursor:pointer}
         <button class="bar" data-go="contact" data-from="self" style="--bc:#4DC8FF"><b>Contact</b><span>Email, LinkedIn, GitHub</span></button>
       </nav>
     </div>
+
+    <footer class="foot">
+      <p class="c">© 2026 Radu Matei. All rights reserved.</p>
+      <p>No cookies, no analytics, no tracking. Fonts and code load from this site, so your browser contacts no one else. The host, GitHub Pages, keeps standard server logs, including IP addresses, for security.</p>
+      <p class="cr">Type: Instrument Sans and IBM Plex Mono (SIL OFL). 3D: three.js (MIT).</p>
+    </footer>
   </div></div></section>
   <section class="page p-projects" id="pg-projects" aria-label="Projects"><div class="pw"><div class="pbg"></div><div class="wash"></div><div class="pc">
     <h1 class="ttl r"><span class="tt">Projects</span><span class="tb" aria-hidden="true">Projects</span></h1><p class="lead r">Things I've built, biggest first.</p>
@@ -1003,9 +1019,10 @@ last = t</pre></div>
 <div class="toast" id="toast" role="status"></div>
 
 
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="importmap">{"imports":{"three":"./assets/vendor/three/three.module.min.js","three/addons/":"./assets/vendor/three/addons/"}}</script>
 <script src="assets/js/light.js"></script>
 <script src="assets/js/datalink-3d.js"></script>
+<script src="assets/js/tab-icon.js" defer></script>
 <script>
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $=s=>document.querySelector(s),lerp=(a,b,t)=>a+(b-a)*t,clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
