@@ -35,20 +35,23 @@ button{font:inherit;color:inherit}
 .touch .sc{background:var(--lq-fill),rgba(16,18,28,.9)}
 .touch .edge{-webkit-backdrop-filter:none;backdrop-filter:none;background:linear-gradient(rgba(5,6,11,.55),transparent)}
 .touch .edge.b{background:linear-gradient(transparent,rgba(5,6,11,.55))}
-/* the menu hint: a light runs around the island, with a short line under it */
-#ihint{position:fixed;left:0;top:0;z-index:47;pointer-events:none;opacity:0;transition:opacity .7s}
+/* the menu hint: a light keeps circling the island (a conic gradient spinning inside a ring-shaped mask, so the compositor
+   alone animates it), and a short line under it flashes every few seconds */
+#ihint{position:fixed;left:0;top:0;z-index:47;pointer-events:none;opacity:0;transition:opacity .8s}
 #ihint.on{opacity:1}
-#ihint svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-#ihint rect{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke}
-#ihint .g{stroke:rgba(255,255,255,.14);stroke-width:1.5}
-#ihint .r{stroke:var(--accent);stroke-width:2.5;stroke-dasharray:16 84;animation:ihRun 1.7s linear infinite;filter:drop-shadow(0 0 4px var(--accent))}
-#ihint .r2{animation-delay:-.85s;opacity:.55}
-@keyframes ihRun{from{stroke-dashoffset:0}to{stroke-dashoffset:-100}}
+#ihint .ring,#ihint .base{position:absolute;inset:0;border-radius:999px}
+#ihint .base{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.14)}
+#ihint .ring{padding:2.5px;overflow:hidden;-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
+#ihint .ring i{position:absolute;left:50%;top:50%;width:var(--d,240px);height:var(--d,240px);margin:calc(var(--d,240px)/-2) 0 0 calc(var(--d,240px)/-2);
+  background:conic-gradient(from 0deg,transparent 0 62%,color-mix(in srgb,var(--accent) 60%,transparent) 78%,var(--accent) 88%,#fff 91%,var(--accent) 93%,transparent 96%);
+  animation:ihSpin 2.2s linear infinite;will-change:transform}
+@keyframes ihSpin{to{transform:rotate(1turn)}}
 #ihint .cap{position:absolute;left:50%;top:calc(100% + 12px);transform:translateX(-50%);white-space:nowrap;font-size:13px;font-weight:600;color:#E6E9F2;
-  padding:7px 13px;border-radius:999px;background:rgba(14,16,24,.82);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 8px 24px rgba(0,0,0,.4);
-  translate:0 -6px;transition:translate .7s var(--spring)}
-#ihint.on .cap{translate:0 0}
-@media (prefers-reduced-motion:reduce){#ihint .r{animation:none;stroke-dasharray:none}#ihint .r2{display:none}}
+  padding:7px 13px;border-radius:999px;background:rgba(14,16,24,.84);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 8px 24px rgba(0,0,0,.4);
+  opacity:0;translate:0 -6px;transition:opacity .45s,translate .7s var(--spring)}
+#ihint.say .cap{opacity:1;translate:0 0}
+@media (prefers-reduced-motion:reduce){#ihint .ring i{animation:none}#ihint .ring i{background:var(--accent);opacity:.7}}
 /* the island as a short notice (back gesture) */
 :root #island.note{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 30%,rgba(255,255,255,.12)),rgba(255,255,255,.05) 60%,rgba(255,255,255,.08))}
 
@@ -1868,37 +1871,41 @@ const DROP=(()=>{const back=$('#back'),drop=$('#drop'),rims=[...drop.querySelect
   return{show,hide,pause,place,tip,hop,get state(){return state}}})();
 
 /* ---------- the menu hint ----------
-   New visitors may not know the island is the menu. After 40 s of time on the site (counted only while the tab is visible
-   and the menu closed) a light runs around the island with a short line under it, a few laps, then again every 25 s of
-   use. The first time the menu opens it stops for good (for this tab now; across visits once PREFS has consent). */
-const HINT=(()=>{const KEY='menu-found',FIRST=40000,AGAIN=25000,LAPS=3*1700;
-  let done=PREFS.get(KEY)==='1',acc=0,next=FIRST,last=performance.now(),raf=0,playing=false,endT=0;
+   New visitors may not know the island is the menu. After 40 s on the site (counted only while the tab is visible and the
+   menu closed) a light starts circling the island and keeps going; every 7 s the line "Tap the island for the menu" shows
+   for 2.5 s. The first time the menu opens it all stops for good (for this tab now; across visits once PREFS has consent). */
+const HINT=(()=>{const KEY='menu-found',FIRST=40000,SAY_EVERY=7000,SAY_FOR=2500;
+  let done=PREFS.get(KEY)==='1',acc=0,last=performance.now(),playing=false,sayI=0,sayT=0;
   const el=document.createElement('div');el.id='ihint';el.setAttribute('aria-hidden','true');
-  el.innerHTML='<svg><rect class="g" pathLength="100"/><rect class="r" pathLength="100"/><rect class="r r2" pathLength="100"/></svg><span class="cap"><span class="ms">Click</span><span class="tp">Tap</span> the island for the menu</span>';
-  document.body.appendChild(el);const rects=[...el.querySelectorAll('rect')];
+  el.innerHTML='<span class="base"></span><span class="ring"><i></i></span><span class="cap"><span class="ms">Click</span><span class="tp">Tap</span> the island for the menu</span>';
+  document.body.appendChild(el);
+  /* sits on the island; the island only changes width (it stays centred), so a ResizeObserver is enough to follow it */
   function place(){const r=island.getBoundingClientRect(),g=7,w=r.width+2*g,h=r.height+2*g;
     el.style.transform=`translate(${(r.left-g).toFixed(1)}px,${(r.top-g).toFixed(1)}px)`;el.style.width=w+'px';el.style.height=h+'px';
-    rects.forEach(x=>{x.setAttribute('width',w);x.setAttribute('height',h);x.setAttribute('rx',h/2);x.setAttribute('ry',h/2)})}
-  function follow(){raf=0;if(!playing)return;place();raf=requestAnimationFrame(follow)}   // the island changes width with its label
-  function play(){if(done||playing||menuOpen||busy)return;playing=true;place();el.classList.add('on');follow();
-    if(!reduce)island.animate([{scale:'1'},{scale:'1.06'},{scale:'1'}],{duration:620,easing:'cubic-bezier(.3,.7,.3,1)'});
-    clearTimeout(endT);endT=setTimeout(stop,LAPS)}
-  function stop(){playing=false;el.classList.remove('on');cancelAnimationFrame(raf);raf=0}
-  setInterval(()=>{const t=performance.now(),dt=t-last;last=t;if(done)return;
-    if(!document.hidden&&!menuOpen)acc+=Math.min(dt,2000);
-    if(acc>=next){next=acc+AGAIN;play()}},1000);
+    el.style.setProperty('--d',Math.ceil(Math.hypot(w,h))+'px')}
+  const ro=window.ResizeObserver?new ResizeObserver(()=>{if(playing)place()}):null;
+  function say(){if(!playing)return;el.classList.add('say');clearTimeout(sayT);sayT=setTimeout(()=>el.classList.remove('say'),SAY_FOR)}
+  function play(){if(done||playing)return;playing=true;place();if(ro)ro.observe(island);addEventListener('resize',place);
+    el.classList.add('on');if(!reduce)island.animate([{scale:'1'},{scale:'1.06'},{scale:'1'}],{duration:620,easing:'cubic-bezier(.3,.7,.3,1)'});
+    setTimeout(say,900);sayI=setInterval(say,SAY_EVERY)}
+  function stop(){playing=false;el.classList.remove('on','say');clearInterval(sayI);clearTimeout(sayT);if(ro)ro.disconnect();removeEventListener('resize',place)}
+  const clock=setInterval(()=>{const t=performance.now(),dt=t-last;last=t;if(done){clearInterval(clock);return}
+    if(!document.hidden&&!menuOpen)acc+=Math.min(dt,2000);if(acc>=FIRST)play()},1000);
   /* the visitor opened the menu: never again */
   function found(){if(done)return;done=true;PREFS.set(KEY,'1');stop()}
   return{found,play}})();
 
 /* ---------- the back gesture ----------
-   The site is one page, so the browser's back button (or a back swipe) would leave it. One extra history entry, added at
-   the first tap or key press (browsers skip entries added without a user gesture), catches that first back. Inside the
-   site it goes one level up: closes the menu or an open card, leaves a rover story or the rover page, or goes home. On the
-   home page the island turns into a short notice for 3 s; going back again in that time leaves the site. */
-const BACKG=(()=>{let armed=false,warned=false,wT=0;
-  function arm(){if(armed||warned)return;armed=true;try{history.pushState({rm:1},'')}catch(e){armed=false}}
-  addEventListener('pointerdown',arm,{capture:true,passive:true});addEventListener('keydown',arm,{capture:true});
+   The site is one page, so the browser's back button (or a back swipe) would leave it. An extra history entry catches the
+   first back. Browsers skip entries that were added without a real user action since the last one (on a touch screen the
+   finger landing does not count, only a completed tap), so a strong entry is added on the next tap or key press, and right
+   after a back a weak one is added too, in case the browser keeps it. Inside the site, back goes one level up: closes the
+   menu or an open card, leaves a rover story or the rover page, or goes home. On the home page the island turns into a
+   short notice for 3 s; going back again in that time leaves the site. */
+const BACKG=(()=>{let strong=false,warned=false,wT=0;
+  const push=()=>{try{history.pushState({rm:1},'');return true}catch(e){return false}};
+  function onAct(){if(strong||warned)return;if(push())strong=true}
+  ['click','keydown','pointerup','touchend'].forEach(t=>addEventListener(t,onAct,{capture:true,passive:true}));
   function up(){if(menuOpen){closeMenu();return true}
     if(HOME.sheetOpen()){HOME.closeSheet();return true}
     if(current==='dl'){DL.back();return true}
@@ -1906,14 +1913,14 @@ const BACKG=(()=>{let armed=false,warned=false,wT=0;
     return false}
   function note(on){clearTimeout(wT);island.classList.toggle('note',on);
     if(on){const m=TOUCH?'Swipe back again to leave':'Press back again to leave';setLabel(m);islandTo(closedLay(m),{spr:SPR.size});
-      wT=setTimeout(()=>{warned=false;note(false);arm()},3000)}
+      wT=setTimeout(()=>{warned=false;note(false);push()},3000)}
     else if(!menuOpen){setLabel(LBL);islandTo(closedLay(),{spr:SPR.size})}}
-  addEventListener('popstate',()=>{armed=false;
-    if(busy){arm();return}                      // mid-transition: stay, and catch the next one too
-    if(up()){arm();return}
-    warned=true;note(true)});                   // no entry pushed now: the next back leaves
-  island.addEventListener('pointerdown',()=>{if(warned){warned=false;note(false);arm()}},{capture:true});
-  return{arm}})();
+  addEventListener('popstate',()=>{strong=false;
+    if(warned){history.back();return}         // confirmed: step past any of our own entries and out of the site
+    if(busy||up()){push();return}             // stay on the site; the next tap adds a strong entry again
+    warned=true;note(true)});                 // nothing pushed now: the next back leaves
+  island.addEventListener('click',()=>{if(warned){warned=false;note(false);onAct()}},{capture:true});
+  return{get strong(){return strong}}})();
 
 /* ---------- projects: the lyrics list ----------
    The track holds one snap point per project; the stage inside it is pinned. Where the scroll sits picks the project in
