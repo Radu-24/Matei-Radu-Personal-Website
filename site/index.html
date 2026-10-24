@@ -26,6 +26,31 @@ body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:16px
 button{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:4px}
 [hidden]{display:none!important}
+/* instructions that depend on the device: .ms for a mouse, .tp for touch */
+.tp{display:none}@media (hover:none) and (pointer:coarse){.tp{display:inline}.ms{display:none}}
+/* touch devices: no backdrop blur on cards and story panels (each is an extra GPU pass on every scrolled frame); a little
+   more tint instead. The frosted top and bottom edges become plain fades. */
+.touch .lq.bd,.touch .sc.bd{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.touch .lq.bd{background-color:rgba(20,22,32,.5)}
+.touch .sc{background:var(--lq-fill),rgba(16,18,28,.9)}
+.touch .edge{-webkit-backdrop-filter:none;backdrop-filter:none;background:linear-gradient(rgba(5,6,11,.55),transparent)}
+.touch .edge.b{background:linear-gradient(transparent,rgba(5,6,11,.55))}
+/* the menu hint: a light runs around the island, with a short line under it */
+#ihint{position:fixed;left:0;top:0;z-index:47;pointer-events:none;opacity:0;transition:opacity .7s}
+#ihint.on{opacity:1}
+#ihint svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#ihint rect{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke}
+#ihint .g{stroke:rgba(255,255,255,.14);stroke-width:1.5}
+#ihint .r{stroke:var(--accent);stroke-width:2.5;stroke-dasharray:16 84;animation:ihRun 1.7s linear infinite;filter:drop-shadow(0 0 4px var(--accent))}
+#ihint .r2{animation-delay:-.85s;opacity:.55}
+@keyframes ihRun{from{stroke-dashoffset:0}to{stroke-dashoffset:-100}}
+#ihint .cap{position:absolute;left:50%;top:calc(100% + 12px);transform:translateX(-50%);white-space:nowrap;font-size:13px;font-weight:600;color:#E6E9F2;
+  padding:7px 13px;border-radius:999px;background:rgba(14,16,24,.82);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 8px 24px rgba(0,0,0,.4);
+  translate:0 -6px;transition:translate .7s var(--spring)}
+#ihint.on .cap{translate:0 0}
+@media (prefers-reduced-motion:reduce){#ihint .r{animation:none;stroke-dasharray:none}#ihint .r2{display:none}}
+/* the island as a short notice (back gesture) */
+:root #island.note{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 30%,rgba(255,255,255,.12)),rgba(255,255,255,.05) 60%,rgba(255,255,255,.08))}
 
 /* ---------- stage + pages ---------- */
 #stage{position:fixed;inset:0}
@@ -345,7 +370,7 @@ button.tile{cursor:pointer}
 
 @media (max-width:980px){.bento{grid-template-columns:repeat(6,1fr)}.t-intro{grid-column:span 4}.t-photo{grid-column:span 2}.t-term,.t-rover{grid-column:span 6}.t-scope,.t-trip{grid-column:span 6}.t-clock,.t-sec{grid-column:span 3}}
 @media (max-width:600px){
-  .bento{grid-template-columns:1fr 1fr;gap:12px}.t-intro,.t-term,.t-scope,.t-rover{grid-column:span 2}.t-photo{grid-column:span 1;grid-row:span 1;min-height:190px}.t-clock,.t-trip,.t-sec{grid-column:span 1}.t-trip{grid-column:span 2}
+  .bento{grid-template-columns:1fr 1fr;gap:12px}.t-intro,.t-term,.t-scope,.t-rover{grid-column:span 2}.t-photo{grid-column:span 1;grid-row:span 1;min-height:190px}.t-clock,.t-trip,.t-sec{grid-column:span 1}.t-trip,.t-sec{grid-column:span 2}
   .clk .hh-m{font-size:34px}
   .bars{grid-template-columns:1fr 1fr;height:auto}.bar{min-height:150px}
   .rv{transform:scale(.72);transform-origin:top center}.lb{display:none}.rail{left:8px}
@@ -407,25 +432,25 @@ button.pj{cursor:pointer}
 .pv-pass{display:flex;flex-direction:column;justify-content:center;gap:14px;padding:0 22px}
 .pv-pass .fld{height:40px;border-radius:12px;background:rgba(255,255,255,.07);display:flex;align-items:center;padding:0 14px;font-family:var(--mono);font-size:15px;letter-spacing:.18em;color:#fff;position:relative}
 .pv-pass .fld b{font-weight:400;transition:opacity .3s}.pv-pass .fld em{position:absolute;left:14px;font-style:normal;letter-spacing:.02em;opacity:0;transition:opacity .3s}
-.pj:hover .pv-pass .fld b{opacity:0}.pj:hover .pv-pass .fld em{opacity:1}
+:is(.pj:hover,.ly.on) .pv-pass .fld b{opacity:0}:is(.pj:hover,.ly.on) .pv-pass .fld em{opacity:1}
 .pv-pass .bar2{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden}
 .pv-pass .bar2 i{display:block;height:100%;width:100%;border-radius:inherit;transform-origin:left;transform:scaleX(.22);background:linear-gradient(90deg,#FF5A6A,#FFE14D 55%,#5CF59A);
   transition:transform 1.1s var(--spring)}
-.pj:hover .pv-pass .bar2 i{transform:scaleX(.94)}
+:is(.pj:hover,.ly.on) .pv-pass .bar2 i{transform:scaleX(.94)}
 .pv-pass .st{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}.pv-pass .st b{font-weight:600;color:#FF5A6A;transition:color .4s}
-.pj:hover .pv-pass .st b{color:#5CF59A}
+:is(.pj:hover,.ly.on) .pv-pass .st b{color:#5CF59A}
 .pv-trip svg{position:absolute;inset:0;width:100%;height:100%}
 .pv-trip .arc{fill:none;stroke:rgba(255,255,255,.28);stroke-width:1.5;stroke-dasharray:4 6}
 .pv-trip .city{fill:#FF9F43}.pv-trip text{fill:#C2C7D4;font-size:11px;font-family:var(--mono)}
 .pv-trip .plane{offset-path:path("M40 92 Q 170 -10 300 70");offset-distance:8%;offset-rotate:auto;transition:offset-distance 1.4s cubic-bezier(.3,.6,.2,1)}
-.pj:hover .pv-trip .plane{offset-distance:92%}
+:is(.pj:hover,.ly.on) .pv-trip .plane{offset-distance:92%}
 .pv-lab svg{position:absolute;inset:0;width:100%;height:100%}
 .pv-lab line{stroke:rgba(255,255,255,.18);stroke-width:1.2}
 .pv-lab circle{fill:#1b1e2a;stroke:#8C92A6;stroke-width:1.5;transition:fill .3s,stroke .3s}
 .pv-lab .pk{fill:#5CF59A;opacity:0;offset-path:path("M60 60 L 160 30 L 260 62 L 330 34")}
-.pj:hover .pv-lab .pk{animation:pkt 1.6s linear infinite}
-.pj:hover .pv-lab circle{stroke:#5CF59A}
-.pj:hover .pv-lab circle.hit{fill:#FF5A6A;stroke:#FF5A6A;transition-delay:.9s}
+:is(.pj:hover,.ly.on) .pv-lab .pk{animation:pkt 1.6s linear infinite}
+:is(.pj:hover,.ly.on) .pv-lab circle{stroke:#5CF59A}
+:is(.pj:hover,.ly.on) .pv-lab circle.hit{fill:#FF5A6A;stroke:#FF5A6A;transition-delay:.9s}
 @keyframes pkt{0%{offset-distance:0%;opacity:1}90%{opacity:1}100%{offset-distance:100%;opacity:0}}
 .pv-whist{display:grid;place-items:center}
 .pv-whist i{position:absolute;left:50%;top:50%;width:46px;height:66px;margin:-33px 0 0 -23px;border-radius:7px;background:linear-gradient(160deg,#fff,#dfe3ee);
@@ -433,8 +458,8 @@ button.pj{cursor:pointer}
   transition:transform .8s var(--spring)}
 .pv-whist i.r{color:#e0293f}
 .pv-whist i:nth-child(1){transform:rotate(-6deg)}.pv-whist i:nth-child(2){transform:rotate(-2deg)}.pv-whist i:nth-child(3){transform:rotate(2deg)}.pv-whist i:nth-child(4){transform:rotate(6deg)}
-.pj:hover .pv-whist i:nth-child(1){transform:rotate(-30deg)}.pj:hover .pv-whist i:nth-child(2){transform:rotate(-10deg)}
-.pj:hover .pv-whist i:nth-child(3){transform:rotate(10deg)}.pj:hover .pv-whist i:nth-child(4){transform:rotate(30deg)}
+:is(.pj:hover,.ly.on) .pv-whist i:nth-child(1){transform:rotate(-30deg)}:is(.pj:hover,.ly.on) .pv-whist i:nth-child(2){transform:rotate(-10deg)}
+:is(.pj:hover,.ly.on) .pv-whist i:nth-child(3){transform:rotate(10deg)}:is(.pj:hover,.ly.on) .pv-whist i:nth-child(4){transform:rotate(30deg)}
 .soon{position:absolute;right:20px;top:22px;font-size:12px;color:var(--muted);font-family:var(--mono);z-index:3}
 
 /* the card itself rises in (not its wrapper): a fading wrapper would cut the card's glass off from what is behind it */
@@ -452,6 +477,106 @@ button.pj{cursor:pointer}
 @media (prefers-reduced-motion:reduce){.pj{animation:none!important}}
 
 .pj.tilt{transition:transform .3s cubic-bezier(.2,.7,.3,1)}
+/* ================= PROJECTS: the lyrics list =================
+   Like the lyrics view in Apple Music: the project names sit in one column on a pinned stage. The one in focus is big and
+   opens up underneath (what it is, a visual, links); the others shrink to a line and fade the further away they are.
+   Scrolling moves the focus one project at a time and the page snaps gently to each one (proximity snap, so it never
+   fights you). Positions are computed once per resize; a focus change only sets transforms and opacity, and the
+   compositor plays the springs. */
+#pg-projects{scroll-snap-type:y proximity}
+.ly-trk{position:relative;margin-top:6vh}
+.ly-stage{position:sticky;top:0;height:100vh;height:100svh;overflow:clip}
+.ly-a{position:absolute;left:0;width:1px;height:1px;scroll-snap-align:start;pointer-events:none}
+.ly-list{position:absolute;inset:0}
+.ly{--lys:.44;--ease:cubic-bezier(.22,1,.36,1);position:absolute;left:0;right:0;top:0;pointer-events:none;opacity:0;
+  transition:transform .9s var(--ease),opacity .6s var(--ease);will-change:transform,opacity}
+.ly-in{display:block;width:100%;border:0;padding:0;margin:0;background:none;color:inherit;font:inherit;text-align:left}
+.ly-n{display:block;width:fit-content;max-width:100%;border:0;padding:0;margin:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;pointer-events:auto;
+  font-size:clamp(44px,7.4vw,104px);font-weight:700;letter-spacing:-.05em;line-height:.9;padding-bottom:.14em;
+  transform-origin:0 0;transition:transform .9s var(--ease),color .5s}
+.ly:not(.on) .ly-n{transform:scale(var(--lys));color:#AEB4C4}
+.ly:not(.on) .ly-n:hover{color:#fff}
+.ly-b{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(20px,3vw,44px);align-items:center;margin-top:clamp(14px,2.4vh,26px);
+  transition:opacity .55s .14s,transform .9s .08s var(--ease),visibility 0s}
+.ly:not(.on) .ly-b{opacity:0;transform:translateY(26px);visibility:hidden;transition:opacity .2s,transform .3s,visibility 0s .3s}
+.ly.on .ly-b{pointer-events:auto}
+.ly .no{font-family:var(--mono);font-size:12.5px;color:var(--muted);letter-spacing:.04em}
+.ly p.d,.ly span.d{margin:10px 0 0;color:#C9CEDA;font-size:17px;max-width:42ch}
+.ly .tags{margin-top:18px;padding-top:0}.ly-t{display:block}.ly-b .ly-t>.no{display:block}
+.ly-l{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:22px}
+.ly-l .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;font-size:14px;text-decoration:none}
+.ly-l .btn svg{width:16px;height:16px}
+.ly-l .later{font-size:13.5px;color:var(--muted)}
+.ly-l .later i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--pc);box-shadow:0 0 10px var(--pc);margin-right:8px;vertical-align:1px}
+/* the window: glass with the project's visual; it grows in a beat after the words */
+.ly-w{position:relative;height:min(40vh,350px);border-radius:28px;display:grid;place-items:center;overflow:hidden;
+  transition:transform 1s .1s var(--ease)}
+.ly:not(.on) .ly-w{transform:scale(.9)}
+.ly-w::before{content:"";position:absolute;left:8%;right:8%;top:10%;bottom:10%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--pc) 22%,transparent),transparent)}
+.ly-w .pv{position:relative;width:min(70%,380px);height:150px;margin:0;scale:1.45;background:none;box-shadow:none}
+/* the rover: the live 3D model sits in its window; the whole entry is the button that opens the project */
+#pj-rover{cursor:pointer}
+.ly-n{position:relative}.ly:not(.on) .ly-n::after{content:"";position:absolute;left:0;right:0;top:-18%;bottom:-18%}
+#pj-rover .ly-n{white-space:nowrap}
+#pj-rover .ly-w{height:min(48vh,430px)}
+#pj-rover .ly-w.rvc-stage{min-height:0;z-index:auto}
+#pj-rover .go-pill{margin-top:24px}
+.ly.on #pj-rover:hover .go-pill{gap:16px;padding-right:12px}.ly.on #pj-rover:hover .go-pill i{transform:rotate(-45deg)}
+.ly.on #pj-rover:hover .rvc-stage::before{opacity:1;transform:scale(1.08)}
+
+/* the smaller things: plain glass rows that link straight to GitHub */
+.more{position:relative;margin-top:8vh;scroll-snap-align:start;scroll-margin-top:16vh}
+.more h3{margin:0 0 8px;font-size:clamp(30px,3.6vw,44px);letter-spacing:-.04em}
+.more>p{margin:0 0 22px;color:#B9BFCC}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:20px;align-items:center;margin-top:12px;padding:20px 22px 20px 26px;border-radius:22px;
+  color:inherit;text-decoration:none;transition:transform .6s var(--spring)}
+.mrow b{display:block;font-size:19px;letter-spacing:-.02em}
+.mrow span{color:#B9BFCC;font-size:15px}
+.mrow em{font-style:normal;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.mrow i{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.07);transition:transform .6s var(--spring),background .3s}
+.mrow i svg{width:15px;height:15px}
+.mrow:hover{transform:translateX(8px)}.mrow:hover i{transform:rotate(-45deg);background:rgba(255,255,255,.14)}
+
+/* ping pong turret: it turns to aim, then fires three balls into the cup */
+.pv-tur svg,.pv-bike svg{position:absolute;inset:0;width:100%;height:100%}
+.pv-tur .fl{stroke:rgba(255,255,255,.16);stroke-width:1.5}
+.pv-tur .bs{fill:#1b1e2a;stroke:#8C92A6;stroke-width:1.5}
+.pv-tur .hd{transform-box:view-box;transform-origin:78px 94px;rotate:4deg;transition:rotate 1s var(--spring)}
+.pv-tur .hd rect{fill:#262a39;stroke:#b8bfd4;stroke-width:1.5}
+.pv-tur .hd .mz{fill:var(--pc);stroke:none}
+.pv-tur .cup{fill:none;stroke:#b8bfd4;stroke-width:2;stroke-linejoin:round}
+.pv-tur .ball{fill:#fff;opacity:0;offset-path:path("M146 70 Q 236 -6 318 96");offset-rotate:0deg}
+.pv-tur text{fill:var(--muted);font:11px var(--mono)}
+:is(.pj:hover,.ly.on) .pv-tur .hd{rotate:-9deg}
+:is(.pj:hover,.ly.on) .pv-tur .ball{animation:shot 2.6s cubic-bezier(.35,.1,.6,1) .5s infinite}
+:is(.pj:hover,.ly.on) .pv-tur .ball:nth-of-type(2){animation-delay:.85s}
+:is(.pj:hover,.ly.on) .pv-tur .ball:nth-of-type(3){animation-delay:1.2s}
+@keyframes shot{0%{offset-distance:0%;opacity:0}8%{opacity:1}42%{offset-distance:100%;opacity:1}50%,100%{offset-distance:100%;opacity:0}}
+/* campus bikeshare: requests go from the gateway to the three services, which light up as they answer */
+.pv-bike line{stroke:rgba(255,255,255,.18);stroke-width:1.2}
+.pv-bike rect{fill:#1b1e2a;stroke:#8C92A6;stroke-width:1.5;transition:stroke .3s}
+.pv-bike text{fill:#C2C7D4;font:11px var(--mono);text-anchor:middle}
+.pv-bike .pk{fill:var(--pc);opacity:0}
+.pv-bike .pk.a{offset-path:path("M190 40 L70 104")}.pv-bike .pk.b{offset-path:path("M190 40 L190 104")}.pv-bike .pk.c{offset-path:path("M190 40 L310 104")}
+:is(.pj:hover,.ly.on) .pv-bike .pk{animation:pkt 1.5s linear infinite}
+:is(.pj:hover,.ly.on) .pv-bike .pk.b{animation-delay:.5s}:is(.pj:hover,.ly.on) .pv-bike .pk.c{animation-delay:1s}
+:is(.pj:hover,.ly.on) .pv-bike rect{stroke:var(--pc)}
+
+@media (max-width:860px){
+  .ly{--lys:.6}
+  .ly-n{font-size:clamp(36px,10.5vw,64px)}
+  .ly-b{grid-template-columns:1fr;gap:18px}
+  .ly-w{order:-1;height:min(26vh,210px);border-radius:24px}
+  #pj-rover .ly-w{height:min(32vh,260px)}
+  .ly-w .pv{width:min(88%,380px);scale:1}
+  .ly p.d,.ly span.d{font-size:16px}
+  .mrow{grid-template-columns:minmax(0,1fr) auto}.mrow em{display:none}
+}
+@media (max-height:700px) and (min-width:861px){.ly-w{height:min(36vh,300px)}#pj-rover .ly-w{height:min(40vh,330px)}}
+@media (prefers-reduced-motion:reduce){.ly,.ly-n,.ly-b,.ly-w{transition:none!important}}
+.ly-list.nt .ly,.ly-list.nt .ly-n,.ly-list.nt .ly-b,.ly-list.nt .ly-w{transition:none!important}
+
 /* the card's glass, laid over the project page while it grows out of the card and fades away */
 .skin{position:absolute;inset:0;z-index:9;pointer-events:none;opacity:0;border-radius:inherit;
   background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.03) 46%,rgba(255,255,255,.06))}
@@ -498,7 +623,7 @@ button.pj{cursor:pointer}
 .p-dl:not([data-mode=select]) .dl-sel{opacity:0;visibility:hidden;transition:opacity .3s,visibility 0s .3s}
 .sel-hd{position:absolute;left:max(24px,5vw);top:calc(96px + env(safe-area-inset-top,0px));max-width:min(560px,90vw)}
 .sel-k{margin:0 0 12px;font-family:var(--mono);font-size:12.5px;letter-spacing:.06em;color:var(--muted)}
-.dl-sel .sel-t{margin:0;font-size:clamp(38px,4.6vw,68px);font-weight:700;letter-spacing:-.05em;line-height:.9;transform-origin:0 0}
+.dl-sel .sel-t{margin:0;font-size:clamp(38px,4.6vw,68px);font-weight:700;letter-spacing:-.05em;line-height:.9;white-space:nowrap;transform-origin:0 0}
 .sel-s{margin:14px 0 0;color:#AEB4C4;font-size:16px}
 .pick{position:absolute;left:0;top:0;border:0;padding:0;margin:0;background:none;color:inherit;font:inherit;cursor:pointer;pointer-events:auto;will-change:transform;
   -webkit-tap-highlight-color:transparent}
@@ -564,6 +689,9 @@ button.pj{cursor:pointer}
 @media (max-width:760px),(max-aspect-ratio:9/10){.sc,.sc.mid{left:16px;right:16px;width:auto;top:auto;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:none;padding:22px 22px 18px}}
 /* after the 3D story: code, video, photos */
 .after{position:relative;padding:12vh max(24px,6vw) 18vh;max-width:1100px;margin:0 auto}
+/* a dark scrim travels up with the section, so its text never sits straight on the 3D model behind it */
+.after::before{content:"";position:absolute;top:-30vh;bottom:0;left:50%;width:100vw;transform:translateX(-50%);z-index:-1;pointer-events:none;
+  background:linear-gradient(rgba(3,4,7,0),rgba(3,4,7,.9) 30vh)}
 .after h2{margin:16vh 0 22px;font-size:clamp(30px,4.4vw,52px);letter-spacing:-.04em;line-height:1}
 .after h2:first-child{margin-top:0}
 .after .al{margin:30px 0 14px;color:#AEB4C4;max-width:62ch}
@@ -699,7 +827,7 @@ button.pj{cursor:pointer}
 
       <div class="tile lq bd t-scope r" aria-label="Signal you can play with">
         <canvas class="scope"></canvas>
-        <p class="hint">Move over the signal. Left and right change the frequency, up and down the amplitude.</p>
+        <p class="hint"><span class="ms">Move over the signal. Left and right change the frequency, up and down the amplitude.</span><span class="tp">Drag sideways across the signal to change the frequency.</span></p>
         <p class="sread"><b class="f">2.0 Hz</b><b class="a">1.0 V</b></p>
       </div>
 
@@ -720,7 +848,7 @@ button.pj{cursor:pointer}
 
       <div class="tile lq bd t-trip r" tabindex="0" role="button" style="--cc:#FFE14D">
         <div class="breaker"><svg viewBox="0 0 80 40" aria-hidden="true"><circle cx="14" cy="20" r="4"/><circle cx="66" cy="20" r="4"/><line class="lever" x1="18" y1="20" x2="62" y2="20"/></svg><span class="kv">6.0 kV</span></div>
-        <b>Siemens Energy</b><span class="sub">Summer 2025. Click the breaker.</span>
+        <b>Siemens Energy</b><span class="sub">Summer 2025. <span class="ms">Click</span><span class="tp">Tap</span> the breaker.</span>
         <template><h3>Siemens Energy, intern</h3><p>Tested protection relays and 6 kV and 0.4 kV switchgear.</p><p>Did some PLC and HMI programming and helped restart a SCADA server.</p><button class="btn p" data-go="record">See my record</button></template>
       </div>
 
@@ -757,74 +885,78 @@ button.pj{cursor:pointer}
 
     <footer class="foot">
       <p class="c">© 2026 Radu Matei. All rights reserved.</p>
-      <p>No cookies, no analytics, no tracking. Fonts and code load from this site, so your browser contacts no one else. The host, GitHub Pages, keeps standard server logs, including IP addresses, for security.</p>
+      <p>No cookies, no analytics, no tracking. While this tab is open, it remembers one thing: whether you have found the menu, so the hint stops. Fonts and code load from this site, so your browser contacts no one else. The host, GitHub Pages, keeps standard server logs, including IP addresses, for security.</p>
       <p class="cr">Type: Instrument Sans and IBM Plex Mono (SIL OFL). 3D: three.js (MIT).</p>
     </footer>
   </div></div></section>
   <section class="page p-projects" id="pg-projects" aria-label="Projects"><div class="pw"><div class="pbg"></div><div class="wash"></div><div class="pc">
     <h1 class="ttl r"><span class="tt">Projects</span><span class="tb" aria-hidden="true">Projects</span></h1><p class="lead r">Things I've built, biggest first.</p>
-    <div class="plist">
-      <div class="pjw big"><button class="pj rover lq bd" id="pj-rover" aria-label="Open the DataLink Rover project">
-        <i class="sheen" aria-hidden="true"></i>
-        <div class="pj-in">
-          <span class="no">01 · Bachelor's thesis · 2026</span>
-          <h2 class="pj-t">DataLink<br>Rover</h2>
-          <p class="d">A tracked robot I designed and built on my own, from the electronics to the control software. It streams live video and data back to the driver.</p>
-          <div class="tags"><span>Graded 9.00</span><span>Live camera</span><span>Telemetry</span><span>Python</span></div>
-          <span class="go-pill">Open project<i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></i></span>
-        </div>
-        <div class="rvc-stage" aria-hidden="true">
-          <div class="rv-slot" id="rv-slot-card"></div>
-          <svg class="rv-fb" viewBox="0 0 220 90"><rect x="70" y="2" width="8" height="26" rx="2" fill="#2a2e3c"/><rect x="58" y="0" width="34" height="14" rx="4" fill="#FF9F43"/><path d="M30 28h160l10 20-10 18H30L20 48z" fill="#30354a" stroke="#b8bfd4" stroke-width="1.5"/><rect x="6" y="56" width="208" height="30" rx="15" fill="#15171f" stroke="#6b7186" stroke-width="3"/></svg>
-          <span class="rv-hint"><i></i>3D preview</span>
-        </div>
+    <div class="ly-trk" id="ly-trk">
+      <div class="ly-a"></div>      <div class="ly-a"></div>      <div class="ly-a"></div>      <div class="ly-a"></div>      <div class="ly-a"></div>      <div class="ly-a"></div>      <div class="ly-a"></div>
+      <div class="ly-stage"><div class="ly-list">
+      <div class="ly" style="--pc:#FF9F43"><button class="ly-in" id="pj-rover" aria-label="Open the DataLink Rover project">
+        <span class="ly-n pj-t">DataLink Rover</span>
+        <span class="ly-b">
+          <span class="ly-t"><span class="no">01 · Bachelor's thesis · 2026</span>
+            <span class="d" style="display:block">A tracked robot I designed and built on my own, from the electronics to the control software. It streams live video and data back to the driver.</span>
+            <span class="tags"><span>Graded 9.00</span><span>Live camera</span><span>Telemetry</span><span>Python</span></span>
+            <span class="go-pill">Open project<i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></i></span></span>
+          <span class="ly-w lq rvc-stage" aria-hidden="true">
+            <span class="rv-slot" id="rv-slot-card"></span>
+            <svg class="rv-fb" viewBox="0 0 220 90"><rect x="70" y="2" width="8" height="26" rx="2" fill="#2a2e3c"/><rect x="58" y="0" width="34" height="14" rx="4" fill="#FF9F43"/><path d="M30 28h160l10 20-10 18H30L20 48z" fill="#30354a" stroke="#b8bfd4" stroke-width="1.5"/><rect x="6" y="56" width="208" height="30" rx="15" fill="#15171f" stroke="#6b7186" stroke-width="3"/></svg>
+            <span class="rv-hint"><i></i>3D preview</span>
+          </span>
+        </span>
       </button></div>
-
-      <div class="pjw"><article class="pj lq bd">
-        <i class="sheen" aria-hidden="true"></i>
-        <div class="pj-in">
-          <div class="pv pv-pass" aria-hidden="true"><div class="fld"><b>••••••••••</b><em>R4du!tennis-2026</em></div><div class="bar2"><i></i></div><div class="st"><span>Strength</span><b>Weak · leaked</b></div></div>
-          <span class="no">02 · Desktop app</span>
-          <h2>Password Helper</h2>
-          <p class="d">Tells you how strong a password is and checks if it showed up in a known data leak. Comes with a small vault server.</p>
-          <div class="tags"><span>Electron</span><span>Node.js</span><span>MongoDB</span><span>Docker</span></div>
+      <div class="ly" style="--pc:#FF5A6A"><div class="ly-in">
+        <button class="ly-n" type="button">Password Helper</button>
+        <div class="ly-b">
+          <div class="ly-t"><span class="no">02 · Desktop app</span><p class="d">A password manager for your computer. It tells you how strong a password is, checks if it showed up in a known leak, keeps everything in an encrypted vault and shows your 2FA codes.</p><div class="tags"><span>Electron</span><span>Node.js</span><span>AES-256</span><span>Have I Been Pwned</span></div><div class="ly-l"><a class="btn s" href="https://github.com/Radu-24/Password-Helper" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Code on GitHub</a><span class="later"><i></i>Full page coming soon</span></div></div>
+          <div class="ly-w lq" aria-hidden="true"><div class="pv pv-pass"><div class="fld"><b>••••••••••</b><em>R4du!tennis-2026</em></div><div class="bar2"><i></i></div><div class="st"><span>Strength</span><b>Weak · leaked</b></div></div></div>
         </div>
-      </article></div>
-
-      <div class="pjw"><article class="pj lq bd">
-        <i class="sheen" aria-hidden="true"></i>
-        <div class="pj-in">
-          <div class="pv pv-trip" aria-hidden="true"><svg viewBox="0 0 340 120" preserveAspectRatio="xMidYMid meet"><path class="arc" d="M40 92 Q 170 -10 300 70"/><circle class="city" cx="40" cy="92" r="5"/><circle class="city" cx="300" cy="70" r="5"/><text x="26" y="112">OTP</text><text x="284" y="92">???</text>
-            <g class="plane"><path d="M-8 0 L8 0 M2 -6 L8 0 L2 6 M-6 -4 L-3 0 L-6 4" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></svg></div>
-          <span class="no">03 · Web app</span>
-          <h2>OPS: City Break</h2>
-          <p class="d">My friends and I used it to pick where to go on a trip. Four voting rounds, live flight prices, runs on my own server.</p>
-          <div class="tags"><span>Node.js</span><span>SQLite</span><span>Docker</span></div>
+      </div></div>
+      <div class="ly" style="--pc:#FFE14D"><div class="ly-in">
+        <button class="ly-n" type="button">OPS: City Break</button>
+        <div class="ly-b">
+          <div class="ly-t"><span class="no">03 · Web app</span><p class="d">My friends and I used it to pick where to go on a trip. Four voting rounds, live flight prices, runs on my own server.</p><div class="tags"><span>Node.js</span><span>SQLite</span><span>Docker</span></div><div class="ly-l"><span class="later"><i></i>Full page coming soon</span></div></div>
+          <div class="ly-w lq" aria-hidden="true"><div class="pv pv-trip"><svg viewBox="0 0 340 120" preserveAspectRatio="xMidYMid meet"><path class="arc" d="M40 92 Q 170 -10 300 70"/><circle class="city" cx="40" cy="92" r="5"/><circle class="city" cx="300" cy="70" r="5"/><text x="26" y="112">OTP</text><text x="284" y="92">???</text><g class="plane"><path d="M-8 0 L8 0 M2 -6 L8 0 L2 6 M-6 -4 L-3 0 L-6 4" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></svg></div></div>
         </div>
-      </article></div>
-
-      <div class="pjw sm"><article class="pj lq bd">
-        <i class="sheen" aria-hidden="true"></i>
-        <div class="pj-in">
-          <div class="pv pv-lab" aria-hidden="true"><svg viewBox="0 0 390 120" preserveAspectRatio="xMidYMid meet"><line x1="60" y1="60" x2="160" y2="30"/><line x1="160" y1="30" x2="260" y2="62"/><line x1="260" y1="62" x2="330" y2="34"/><line x1="160" y1="30" x2="200" y2="96"/>
-            <circle cx="60" cy="60" r="10"/><circle cx="160" cy="30" r="10"/><circle cx="260" cy="62" r="10"/><circle cx="200" cy="96" r="8"/><circle class="hit" cx="330" cy="34" r="10"/><circle class="pk" r="4"/></svg></div>
-          <span class="no">04 · Lab</span>
-          <h2>Home Lab</h2>
-          <p class="d">Virtual machines where I practice attacking and defending: Parrot OS, Metasploitable 2 and GNS3.</p>
-          <div class="tags"><span>VMware</span><span>Parrot OS</span><span>GNS3</span></div>
+      </div></div>
+      <div class="ly" style="--pc:#FF9F43"><div class="ly-in">
+        <button class="ly-n" type="button">Ping Pong Turret</button>
+        <div class="ly-b">
+          <div class="ly-t"><span class="no">04 · Arduino build</span><p class="d">A turret that loads and fires ping pong balls. You aim it with a knob, press the button, and it fires three in a row.</p><div class="tags"><span>Arduino</span><span>C++</span><span>Servos</span><span>Stepper motor</span></div><div class="ly-l"><a class="btn s" href="https://github.com/Radu-24/PingPong_Turret" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Code on GitHub</a><span class="later"><i></i>Full page coming soon</span></div></div>
+          <div class="ly-w lq" aria-hidden="true"><div class="pv pv-tur"><svg viewBox="0 0 380 150" preserveAspectRatio="xMidYMid meet"><line class="fl" x1="16" y1="128" x2="364" y2="128"/><rect class="bs" x="48" y="94" width="60" height="34" rx="6"/><g class="hd"><rect x="54" y="66" width="48" height="30" rx="8"/><rect x="96" y="72" width="52" height="14" rx="7"/><rect class="mz" x="142" y="74" width="6" height="10" rx="2"/></g><path class="cup" d="M300 98 L306 128 L334 128 L340 98"/><circle class="ball" r="6"/><circle class="ball" r="6"/><circle class="ball" r="6"/><text x="300" y="88">× 3</text></svg></div></div>
         </div>
-      </article></div>
-
-      <div class="pjw sm"><article class="pj lq bd">
-        <i class="sheen" aria-hidden="true"></i><span class="soon">in progress</span>
-        <div class="pj-in">
-          <div class="pv pv-whist" aria-hidden="true"><i>A</i><i class="r">K</i><i>Q</i><i class="r">J</i></div>
-          <span class="no">05 · Game</span>
-          <h2>Romanian Whist</h2>
-          <p class="d">The card game my friends and I play, with our own house rules, so we can play it online.</p>
-          <div class="tags"><span>Python</span><span>JavaScript</span><span>Electron</span></div>
+      </div></div>
+      <div class="ly" style="--pc:#4DC8FF"><div class="ly-in">
+        <button class="ly-n" type="button">Campus BikeShare</button>
+        <div class="ly-b">
+          <div class="ly-t"><span class="no">05 · Web app · University</span><p class="d">Bike rental for a university campus. Three small services that work together: accounts, bikes and stations, and bookings.</p><div class="tags"><span>Java</span><span>Spring Boot</span><span>Microservices</span><span>H2</span></div><div class="ly-l"><span class="later"><i></i>Private repo · full page coming soon</span></div></div>
+          <div class="ly-w lq" aria-hidden="true"><div class="pv pv-bike"><svg viewBox="0 0 380 150" preserveAspectRatio="xMidYMid meet"><line x1="190" y1="40" x2="70" y2="104"/><line x1="190" y1="40" x2="190" y2="104"/><line x1="190" y1="40" x2="310" y2="104"/><rect x="130" y="10" width="120" height="30" rx="9"/><text x="190" y="29">gateway :8090</text><rect x="16" y="104" width="108" height="32" rx="9"/><text x="70" y="124">auth :8081</text><rect x="136" y="104" width="108" height="32" rx="9"/><text x="190" y="124">catalog :8082</text><rect x="256" y="104" width="108" height="32" rx="9"/><text x="310" y="124">booking :8083</text><circle class="pk a" r="4"/><circle class="pk b" r="4"/><circle class="pk c" r="4"/></svg></div></div>
         </div>
-      </article></div>
+      </div></div>
+      <div class="ly" style="--pc:#5CF59A"><div class="ly-in">
+        <button class="ly-n" type="button">Home Lab</button>
+        <div class="ly-b">
+          <div class="ly-t"><span class="no">06 · Lab</span><p class="d">Virtual machines where I practice attacking and defending: Parrot OS, Metasploitable 2 and GNS3.</p><div class="tags"><span>VMware</span><span>Parrot OS</span><span>GNS3</span></div><div class="ly-l"><span class="later"><i></i>Full page coming soon</span></div></div>
+          <div class="ly-w lq" aria-hidden="true"><div class="pv pv-lab"><svg viewBox="0 0 390 120" preserveAspectRatio="xMidYMid meet"><line x1="60" y1="60" x2="160" y2="30"/><line x1="160" y1="30" x2="260" y2="62"/><line x1="260" y1="62" x2="330" y2="34"/><line x1="160" y1="30" x2="200" y2="96"/><circle cx="60" cy="60" r="10"/><circle cx="160" cy="30" r="10"/><circle cx="260" cy="62" r="10"/><circle cx="200" cy="96" r="8"/><circle class="hit" cx="330" cy="34" r="10"/><circle class="pk" r="4"/></svg></div></div>
+        </div>
+      </div></div>
+      <div class="ly" style="--pc:#A98BFF"><div class="ly-in">
+        <button class="ly-n" type="button">Romanian Whist</button>
+        <div class="ly-b">
+          <div class="ly-t"><span class="no">07 · Game · in progress</span><p class="d">The card game my friends and I play, with our own house rules, so we can play it online.</p><div class="tags"><span>Python</span><span>JavaScript</span><span>Electron</span></div><div class="ly-l"><span class="later"><i></i>Full page coming soon</span></div></div>
+          <div class="ly-w lq" aria-hidden="true"><div class="pv pv-whist"><i>A</i><i class="r">K</i><i>Q</i><i class="r">J</i></div></div>
+        </div>
+      </div></div>
+      </div></div>
+    </div>
+    <div class="more">
+      <h3>Smaller things</h3><p>Quick builds and team projects. Each one opens on GitHub.</p>
+      <a class="mrow lq" href="https://github.com/Radu-24/Solitaire_SOPM" target="_blank" rel="noopener"><div><b>Solitaire</b><span>A team project. I did the design and the animations.</span></div><em>JavaScript</em><i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></i></a>
+      <a class="mrow lq" href="https://github.com/Radu-24/ShutdownTimer_App" target="_blank" rel="noopener"><div><b>Shutdown Timer</b><span>Pick the exact time your PC turns itself off.</span></div><em>Python</em><i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></i></a>
+      <a class="mrow lq" href="https://github.com/Radu-24/Radu-Matei" target="_blank" rel="noopener"><div><b>This website</b><span>All the code behind the page you are on.</span></div><em>HTML · three.js</em><i><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></i></a>
     </div>
   </div></div></section>
   <section class="page p-dl" id="pg-dl" aria-label="DataLink Rover" data-mode="select" data-bg="select"><div class="pw">
@@ -841,7 +973,7 @@ button.pj{cursor:pointer}
       <div class="dl-tags" id="dl-tags" aria-hidden="true"></div>
       <div class="dl-cards" id="dl-cards"></div>
       <div class="dl-sel" id="dl-sel">
-        <header class="sel-hd"><p class="sel-k">Bachelor's thesis · 2026 · graded 9.00</p><h1 class="sel-t">DataLink<br>Rover</h1><p class="sel-s">Pick a part to explore.</p></header>
+        <header class="sel-hd"><p class="sel-k">Bachelor's thesis · 2026 · graded 9.00</p><h1 class="sel-t">DataLink Rover</h1><p class="sel-s">Pick a part to explore.</p></header>
         <button class="pick" data-pick="remote" style="--c:#6E9BFF"><span class="pk-l"><span class="pk-n">Controller</span><span class="pk-bar"></span><span class="pk-s">Pi 5, a <span class="nw">7-inch</span> screen and two joysticks</span><span class="pk-go">Explore</span></span></button>
         <button class="pick" data-pick="link" style="--c:#4DE1FF"><span class="pk-l"><span class="pk-n">Link</span><span class="pk-bar"></span><span class="pk-s">How a command reaches the rover, twice</span><span class="pk-go">Explore</span></span></button>
         <button class="pick" data-pick="rover" style="--c:#FF9F43"><span class="pk-l"><span class="pk-n">Rover</span><span class="pk-bar"></span><span class="pk-s">T101 tracks, two cameras, a fibre backup</span><span class="pk-go">Explore</span></span></button>
@@ -1065,6 +1197,23 @@ const TIER=(()=>{const coarse=matchMedia('(pointer:coarse)').matches,cores=navig
   try{navigator.getBattery&&navigator.getBattery().then(b=>{const f=()=>{if(!b.charging)api.set(Math.max(t,1))};f();b.addEventListener('chargingchange',f)}).catch(()=>{})}catch(e){}
   return api})();
 TIER.apply();
+/* touch-first devices (phones, tablets): cheaper glass, no live refraction, 3D loaded only when it is needed */
+const TOUCH=matchMedia('(hover:none) and (pointer:coarse)').matches;root.classList.toggle('touch',TOUCH);
+const LIVE=new Set(['island','back']);   /* on touch devices only these keep live refraction: small, and always on screen */
+
+/* ---------- visitor preferences ----------
+   For now they live only in this tab (sessionStorage): gone when the tab closes, never sent anywhere. When the site gets a
+   consent banner, PREFS.persist(true) after the visitor agrees keeps the same keys in localStorage across visits, and
+   PREFS.persist(false) wipes them. Storage can be blocked (private modes, settings), so every call is wrapped. */
+const PREFS=(()=>{const P='rm:',KEYS=['menu-found'];
+  const open=n=>{try{const x=window[n];x.setItem(P+'t','1');x.removeItem(P+'t');return x}catch(e){return null}};
+  const ses=open('sessionStorage');let st=ses;
+  try{if(localStorage.getItem(P+'consent')==='1')st=open('localStorage')||ses}catch(e){}
+  const get=k=>{try{return st?st.getItem(P+k):null}catch(e){return null}},set=(k,v)=>{try{st&&st.setItem(P+k,String(v))}catch(e){}};
+  function persist(on){const ls=open('localStorage');if(!ls)return;
+    try{if(on){ls.setItem(P+'consent','1');KEYS.forEach(k=>{const v=get(k);if(v!=null)ls.setItem(P+k,v)});st=ls}
+      else{ls.removeItem(P+'consent');KEYS.forEach(k=>ls.removeItem(P+k));st=ses}}catch(e){}}
+  return{get,set,persist}})();
 
 /* ---------- liquid glass: refraction maps (Chromium) ----------
    A displacement map built from the shape's distance field bends what is behind the glass near its edges, the way a thick
@@ -1085,7 +1234,7 @@ const GLASS=(()=>{const ua=navigator.userAgent,ok=!!window.chrome&&/Chrome|Chrom
     f.innerHTML=`<feImage href="${map(w,h,r,Math.min(26,r*1.1))}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="m"/><feDisplacementMap in="SourceGraphic" in2="m" scale="${sc}" xChannelSelector="R" yChannelSelector="G"/>`;
     host.appendChild(f);cache.set(k,id);return id}
   /* maxTier: the lightest tier that still gets refraction (0 = full only, 1 = full and balanced); blur and saturation follow it */
-  function set(el,w,h,r,maxTier=1,sc=60,blur=1,sat=1.8){if(!ok||TIER.t>maxTier){clear(el);return}
+  function set(el,w,h,r,maxTier=1,sc=60,blur=1,sat=1.8){if(!ok||TIER.t+(TOUCH&&!LIVE.has(el.id)?1:0)>maxTier){clear(el);return}
     const id=filterFor(Math.round(w),Math.round(h),Math.round(r),sc);el.style.backdropFilter=el.style.webkitBackdropFilter=`url(#${id}) blur(${blur}px) saturate(${sat}) brightness(1.05)`}
   function prep(w,h,r,sc=70){if(ok)filterFor(Math.round(w),Math.round(h),Math.round(r),sc)}
   function clear(el){el.style.backdropFilter=el.style.webkitBackdropFilter=''}
@@ -1421,7 +1570,7 @@ function hover(i){if(!menuOpen||busy)return;clearTimeout(hovT);
   if(i<0){hovT=setTimeout(()=>{hovI=-1;LIGHT.hover(0,0);setLabel('Pages');setCap(GEO.mob?'white light':'white light · 400–700 nm')},120);return}
   if(hovI===i)return;hovI=i;const p=PAGES[i];LIGHT.hover(p.lam,1.7);setLabel(p.name);
   setCap(GEO.mob?`${p.lam} nm · n ${p.n.toFixed(2)}`:`λ ${p.lam} nm · n ${p.n.toFixed(3)} · δ ${(p.D/RAD).toFixed(1)}°`)}
-async function openMenu(viaKey){if(menuOpen||busy)return;menuOpen=true;DROP.pause(true);PROJ.vis();SEL=-1;hovI=-1;ensureLayout();placeOrbs();resetOrbLight();
+async function openMenu(viaKey){if(menuOpen||busy)return;menuOpen=true;HINT.found();DROP.pause(true);PROJ.vis();SEL=-1;hovI=-1;ensureLayout();placeOrbs();resetOrbLight();
   ORBS.forEach(o=>{o.shown=false;o.b.getAnimations().forEach(a=>a.cancel());o.b.style.opacity='';o.b.classList.remove('vis');o.b.tabIndex=0});
   island.classList.add('open');island.setAttribute('aria-expanded','true');island.setAttribute('aria-label','Close menu');
   orbsBox.style.visibility='';orbsBox.classList.add('on');veil.classList.add('on');
@@ -1436,7 +1585,7 @@ async function openMenu(viaKey){if(menuOpen||busy)return;menuOpen=true;DROP.paus
 function releaseMenu(){menuOpen=false;PROJ.vis();veil.classList.remove('on');orbsBox.classList.remove('on');
   island.setAttribute('aria-expanded','false');island.setAttribute('aria-label','Open menu');ORBS.forEach(o=>o.b.tabIndex=-1)}
 async function closeMenu(){if(!menuOpen)return;releaseMenu();LIGHT.off();setLabel(LBL);
-  await sleep(reduce?0:140);if(menuOpen)return;collapseIsland();if(!busy&&current==='dl')DROP.pause(false);
+  await sleep(reduce?0:140);if(menuOpen)return;collapseIsland();if(!busy)DROP.pause(false);
   await sleep(LIGHT.travel);if(!menuOpen&&!busy){LIGHT.hide();orbsBox.style.visibility='hidden'}}
 island.addEventListener('click',e=>{if(busy)return;menuOpen?closeMenu():openMenu(e.detail===0)});
 veil.addEventListener('click',()=>{if(!busy)closeMenu()});
@@ -1718,19 +1867,100 @@ const DROP=(()=>{const back=$('#back'),drop=$('#drop'),rims=[...drop.querySelect
   addEventListener('resize',place);
   return{show,hide,pause,place,tip,hop,get state(){return state}}})();
 
+/* ---------- the menu hint ----------
+   New visitors may not know the island is the menu. After 40 s of time on the site (counted only while the tab is visible
+   and the menu closed) a light runs around the island with a short line under it, a few laps, then again every 25 s of
+   use. The first time the menu opens it stops for good (for this tab now; across visits once PREFS has consent). */
+const HINT=(()=>{const KEY='menu-found',FIRST=40000,AGAIN=25000,LAPS=3*1700;
+  let done=PREFS.get(KEY)==='1',acc=0,next=FIRST,last=performance.now(),raf=0,playing=false,endT=0;
+  const el=document.createElement('div');el.id='ihint';el.setAttribute('aria-hidden','true');
+  el.innerHTML='<svg><rect class="g" pathLength="100"/><rect class="r" pathLength="100"/><rect class="r r2" pathLength="100"/></svg><span class="cap"><span class="ms">Click</span><span class="tp">Tap</span> the island for the menu</span>';
+  document.body.appendChild(el);const rects=[...el.querySelectorAll('rect')];
+  function place(){const r=island.getBoundingClientRect(),g=7,w=r.width+2*g,h=r.height+2*g;
+    el.style.transform=`translate(${(r.left-g).toFixed(1)}px,${(r.top-g).toFixed(1)}px)`;el.style.width=w+'px';el.style.height=h+'px';
+    rects.forEach(x=>{x.setAttribute('width',w);x.setAttribute('height',h);x.setAttribute('rx',h/2);x.setAttribute('ry',h/2)})}
+  function follow(){raf=0;if(!playing)return;place();raf=requestAnimationFrame(follow)}   // the island changes width with its label
+  function play(){if(done||playing||menuOpen||busy)return;playing=true;place();el.classList.add('on');follow();
+    if(!reduce)island.animate([{scale:'1'},{scale:'1.06'},{scale:'1'}],{duration:620,easing:'cubic-bezier(.3,.7,.3,1)'});
+    clearTimeout(endT);endT=setTimeout(stop,LAPS)}
+  function stop(){playing=false;el.classList.remove('on');cancelAnimationFrame(raf);raf=0}
+  setInterval(()=>{const t=performance.now(),dt=t-last;last=t;if(done)return;
+    if(!document.hidden&&!menuOpen)acc+=Math.min(dt,2000);
+    if(acc>=next){next=acc+AGAIN;play()}},1000);
+  /* the visitor opened the menu: never again */
+  function found(){if(done)return;done=true;PREFS.set(KEY,'1');stop()}
+  return{found,play}})();
+
+/* ---------- the back gesture ----------
+   The site is one page, so the browser's back button (or a back swipe) would leave it. One extra history entry, added at
+   the first tap or key press (browsers skip entries added without a user gesture), catches that first back. Inside the
+   site it goes one level up: closes the menu or an open card, leaves a rover story or the rover page, or goes home. On the
+   home page the island turns into a short notice for 3 s; going back again in that time leaves the site. */
+const BACKG=(()=>{let armed=false,warned=false,wT=0;
+  function arm(){if(armed||warned)return;armed=true;try{history.pushState({rm:1},'')}catch(e){armed=false}}
+  addEventListener('pointerdown',arm,{capture:true,passive:true});addEventListener('keydown',arm,{capture:true});
+  function up(){if(menuOpen){closeMenu();return true}
+    if(HOME.sheetOpen()){HOME.closeSheet();return true}
+    if(current==='dl'){DL.back();return true}
+    if(current!=='home'){jump('home');return true}
+    return false}
+  function note(on){clearTimeout(wT);island.classList.toggle('note',on);
+    if(on){const m=TOUCH?'Swipe back again to leave':'Press back again to leave';setLabel(m);islandTo(closedLay(m),{spr:SPR.size});
+      wT=setTimeout(()=>{warned=false;note(false);arm()},3000)}
+    else if(!menuOpen){setLabel(LBL);islandTo(closedLay(),{spr:SPR.size})}}
+  addEventListener('popstate',()=>{armed=false;
+    if(busy){arm();return}                      // mid-transition: stay, and catch the next one too
+    if(up()){arm();return}
+    warned=true;note(true)});                   // no entry pushed now: the next back leaves
+  island.addEventListener('pointerdown',()=>{if(warned){warned=false;note(false);arm()}},{capture:true});
+  return{arm}})();
+
+/* ---------- projects: the lyrics list ----------
+   The track holds one snap point per project; the stage inside it is pinned. Where the scroll sits picks the project in
+   focus; a change of focus lays the list out again (transforms and opacity only) and the CSS springs do the rest.
+   Heights are measured once per resize, never while scrolling. */
+const LYR=(()=>{const pg=$('#pg-projects'),trk=$('#ly-trk'),list=trk.querySelector('.ly-list'),its=[...list.children],anc=[...trk.querySelectorAll('.ly-a')],N=its.length;
+  let k=0,M=null,step=1,t0=0,raf=0,key='';
+  function measure(){if(!(pg.classList.contains('active')||pg.classList.contains('warm')))return;
+    const vh=innerHeight;step=Math.round(vh*.72);
+    trk.style.height=((N-1)*step+vh)+'px';anc.forEach((a,i)=>a.style.top=(i*step)+'px');
+    const m=its.map(el=>({nh:el.querySelector('.ly-n').offsetHeight,bh:el.querySelector('.ly-b').offsetHeight}));
+    if(!m[0].nh)return;M=m;key=innerWidth+'x'+innerHeight;M.s=parseFloat(getComputedStyle(its[0]).getPropertyValue('--lys'))||.44;
+    t0=trk.getBoundingClientRect().top-pg.getBoundingClientRect().top+pg.scrollTop;
+    k=clamp(Math.round((pg.scrollTop-t0)/step),0,N-1);place(true)}
+  function place(now){if(!M)return;const vh=innerHeight,s=M.s,gC=Math.max(10,vh*.012),gE=Math.max(30,vh*.05);let y=0;const ys=[];
+    its.forEach((el,i)=>{ys.push(y);y+=i===k?M[i].nh+M[i].bh+gE:M[i].nh*s+gC});
+    const h=M[k].nh+M[k].bh,off=Math.max(86,(vh-h)/2)-ys[k];
+    if(now)list.classList.add('nt');
+    its.forEach((el,i)=>{const d=Math.abs(i-k);el.classList.toggle('on',d===0);el.classList.toggle('far',d>1);
+      el.style.transform=`translate3d(0,${(ys[i]+off).toFixed(1)}px,0)`;el.style.opacity=d===0?1:d===1?.55:d===2?.3:d===3?.14:0;
+      const b=el.querySelector('.ly-b');if(d===0)b.removeAttribute('inert');else b.setAttribute('inert','')});
+    if(now){list.offsetHeight;requestAnimationFrame(()=>list.classList.remove('nt'))}
+    PROJ.vis()}
+  function tick(){raf=0;if(!M)return;const nk=clamp(Math.round((pg.scrollTop-t0)/step),0,N-1);if(nk!==k){k=nk;place()}}
+  pg.addEventListener('scroll',()=>{if(!raf)raf=requestAnimationFrame(tick)},{passive:true});
+  /* a name you can see but is not in focus: take the scroll there */
+  its.forEach((el,i)=>{const n=el.querySelector('button.ly-n');if(n)n.addEventListener('click',()=>{if(i!==k)go(el)})});
+  function go(el){const i=its.indexOf(el.closest('.ly'));if(i<0)return;pg.scrollTo({top:t0+i*step,behavior:reduce?'auto':'smooth'})}
+  function on(el){const l=el.closest('.ly');return !!l&&l.classList.contains('on')}
+  let rt=0;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(measure,120)});
+  new MutationObserver(()=>{if(pg.classList.contains('active')&&(!M||key!==innerWidth+'x'+innerHeight))measure()}).observe(pg,{attributes:true,attributeFilter:['class']});
+  return{measure,go,on}})();
+
 /* ---------- projects: the cards, and the one 3D canvas (it lives in the rover card until the project opens) ---------- */
 const PROJ=(()=>{const pp=$('#pg-projects'),dl=$('#pg-dl'),card=$('#pj-rover'),cslot=$('#rv-slot-card'),dslot=$('#dl-slot');
   const seen=new Map(),D=()=>window.DL3D&&DL3D.ok?DL3D:null;
   /* the 3D view draws only while its slot is on screen on a visible page (and not under the menu on lighter tiers) */
   function vis(){const d=D();if(!d||!d.canvas)return;const s=d.canvas.parentNode,pg=s&&s.closest&&s.closest('.page');
-    d.setVis(!!(pg&&(pg.classList.contains('active')||pg.classList.contains('warm'))&&(s===dslot||seen.get(s)))&&!(menuOpen&&TIER.t>=1))}
+    d.setVis(!!(pg&&(pg.classList.contains('active')||pg.classList.contains('warm'))&&(s===dslot||(seen.get(s)&&!(s===cslot&&!LYR.on(card)))))&&!(menuOpen&&TIER.t>=1))}
   const io=new IntersectionObserver(es=>{es.forEach(e=>seen.set(e.target,e.isIntersecting));vis()});io.observe(cslot);io.observe(dslot);
   [pp,dl].forEach(p=>new MutationObserver(vis).observe(p,{attributes:true,attributeFilter:['class']}));
-  function load(){if(!window.DL3D)return;DL3D.init(TIER.t).then(ok=>{if(!ok)return;card.classList.add('rv-ready');
+  let loading=false;
+  function load(){if(loading||!window.DL3D)return;loading=true;DL3D.init(TIER.t).then(ok=>{if(!ok)return;card.classList.add('rv-ready');
     if(current==='dl'){DL3D.mount(dslot);DL3D.go(DL.mode,{dur:0})}else{DL3D.mount(cslot);DL3D.go('card',{dur:0})}vis()})}
   TIER.on(t=>{if(window.DL3D)DL3D.setTier(t)});      /* also before the model is in: init() may already have run with the old tier */
   /* the projects page is about to be shown some other way (menu): put the model back in its card */
-  function prep(n){const d=D();if(!d)return;if(n===pp&&d.canvas.parentNode!==cslot){d.mount(cslot);d.release();d.go('card',{dur:0})}}
+  function prep(n){if(n===pp&&!loading)idle(load);const d=D();if(!d)return;if(n===pp&&d.canvas.parentNode!==cslot){d.mount(cslot);d.release();d.go('card',{dur:0})}}
   /* cards lean toward the pointer and a soft light follows it */
   document.querySelectorAll('.pj').forEach(el=>{const sh=el.querySelector('.sheen');let rf=0,ex=0,ey=0;
     el.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse'||reduce||busy)return;ex=e.clientX;ey=e.clientY;if(rf)return;
@@ -1740,7 +1970,11 @@ const PROJ=(()=>{const pp=$('#pg-projects'),dl=$('#pg-dl'),card=$('#pj-rover'),c
         if(big){const d=D();if(d)d.cardHover(true,x*2,y*2)}})});
     el.addEventListener('pointerleave',()=>{el.classList.remove('tilt');el.style.transform='';if(el===card){const d=D();if(d)d.cardHover(false)}})});
   card.addEventListener('focus',()=>{const d=D();if(d&&card.matches(':focus-visible'))d.cardHover(true)});card.addEventListener('blur',()=>{const d=D();if(d)d.cardHover(false)});
-  card.addEventListener('click',()=>DL.enter());
+  card.addEventListener('click',()=>{if(LYR.on(card))DL.enter();else LYR.go(card)});
+  {const w=card.querySelector('.ly-w');let rf=0,ex=0,ey=0;
+    w.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse'||reduce||busy||!LYR.on(card))return;ex=e.clientX;ey=e.clientY;if(rf)return;
+      rf=requestAnimationFrame(()=>{rf=0;const r=w.getBoundingClientRect(),d=D();if(d)d.cardHover(true,((ex-r.left)/r.width-.5)*2,((ey-r.top)/r.height-.5)*2)})});
+    w.addEventListener('pointerleave',()=>{const d=D();if(d)d.cardHover(false)})}
   function left(o,n){if(o===dl)DL.reset()}
   return{load,prep,left,vis}})();
 
@@ -1878,7 +2112,10 @@ const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),c
     const a=c.animate([{opacity:1,translate:'0 0',scale:'1'},{opacity:0,translate:`0 ${-16*d}px`,scale:'.975'}],{duration:190,easing:IN,fill:'forwards'});
     a.finished.then(()=>{if(cardOn!==c){c.classList.remove('on');a.cancel()}},()=>{})}
   function cardsUi(w){const y=page.scrollTop;if(y!==lastY){dir=y>lastY?1:-1;lastY=y}
-    const c=w.seg&&w.seg.card&&w.t>.05&&w.t<.95?w.seg.card:null;if(c===cardOn)return;
+    let c=w.seg&&w.seg.card&&w.t>.05&&w.t<.95?w.seg.card:null;
+    if(c&&segs.length){const L=segs[segs.length-1],end=L.top+L.h-page.scrollTop;   // where the content after the story starts on screen
+      if(end<sh&&end<c.getBoundingClientRect().bottom+12)c=null}
+    if(c===cardOn)return;
     if(cardOn)cardHide(cardOn,dir);cardOn=c;if(c)cardShow(c,dir)}
   function cardsOut(){if(cardOn)cardHide(cardOn,-1);cardOn=null}
   function cardsReset(){cardOn=null;cardsBox.querySelectorAll('.sc').forEach(c=>{c.getAnimations().forEach(a=>a.cancel());c.classList.remove('on')})}
@@ -1952,69 +2189,75 @@ const DL=(()=>{const page=$('#pg-dl'),pp=$('#pg-projects'),card=$('#pj-rover'),c
     if(mode==='select'&&(e.key==='ArrowLeft'||e.key==='ArrowRight')){const order=[...picks].sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left);
       let i=order.findIndex(b=>b.dataset.pick===hot);i=i<0?(e.key==='ArrowRight'?0:order.length-1):(i+(e.key==='ArrowRight'?1:-1)+order.length)%order.length;order[i].focus({preventScroll:true});e.preventDefault()}});
   const later=(ms,f)=>sleep(ms).then(f);
-  const fadeIn=(els,delay,dur=520)=>els.forEach((el,i)=>el.animate([{opacity:0,transform:'translateY(14px)'},{opacity:1,transform:'none'}],{duration:dur,delay:delay+i*60,easing:SOFT,fill:'backwards'}));
+  const fadeIn=(els,delay,dur=520)=>els.forEach((el,i)=>el.animate([{opacity:0,translate:'0 14px'},{opacity:1,translate:'0 0'}],{duration:dur,delay:delay+i*60,easing:SOFT,fill:'backwards'}));
 
-  /* Projects card -> pick screen. One spring drives everything, so the page, the title and the camera land together.
-     The card's glass grows to fill the screen while its words fade under the new page, the title flies to its new place,
-     the camera pulls back from the card's framing to the pick screen, and the projects page sinks behind. The 3D view
-     travels in its own layer (it never fades or jumps), and the labels and the back button's drop wait for the landing. */
-  const fly=$('#dl-fly'),insR=(r,rad)=>`inset(${r.top.toFixed(1)}px ${(innerWidth-r.right).toFixed(1)}px ${(innerHeight-r.bottom).toFixed(1)}px ${r.left.toFixed(1)}px round ${rad}px)`;
+  /* Projects -> pick screen. There is no card to grow: the list fades back, the rover page fades in behind, the title glides
+     from the list to its place on the new page, and the rover flies out of its window into the scene. Only opacity and
+     transform animate (the compositor plays them); glass blur is paused (hush) and the 3D view draws at 1x while it moves.
+     The 3D camera follows the clock of the same animation, so the model and the page always land together. */
+  const fly=$('#dl-fly');
+  const frames2=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  /* a copy of a title, fixed on screen above both pages, that can travel between them */
+  function ghost(src,r){const g=src.cloneNode(true),s=getComputedStyle(src);g.removeAttribute('id');g.className='ghost';g.setAttribute('aria-hidden','true');
+    Object.assign(g.style,{position:'fixed',left:r.left+'px',top:r.top+'px',margin:'0',padding:'0',zIndex:'21',pointerEvents:'none',transformOrigin:'0 0',
+      whiteSpace:'nowrap',fontFamily:s.fontFamily,fontSize:s.fontSize,fontWeight:s.fontWeight,letterSpacing:s.letterSpacing,lineHeight:s.lineHeight,color:s.color,willChange:'transform'});
+    document.body.appendChild(g);return g}
+  const clockOf=a=>()=>!a.v?0:a.v.playState==='idle'?null:a.v.currentTime;
   async function enter(){if(busy||menuOpen||current!=='projects')return;busy=true;
-    const o=pp,n=page,Z=SPR.zoom,Dur=reduce?1:Z.ms,pw=n.querySelector('.pw'),cT=card.querySelector('.pj-t');saved=o.scrollTop;
-    const cr=card.getBoundingClientRect(),cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect(),full={top:0,left:0,right:innerWidth,bottom:innerHeight};
-    card.classList.remove('tilt');card.style.transform='';const d=D();if(d)d.cardHover(false);
-    n.style.zIndex=3;n.scrollTop=0;setMode('select');n.classList.add('warm');setSh();setHot(null);
-    const tf=selT.getBoundingClientRect(),fs=parseFloat(getComputedStyle(cT).fontSize)/parseFloat(getComputedStyle(selT).fontSize);
+    const o=pp,n=page,Z=SPR.zoom,Dur=reduce?1:Z.ms,cT=card.querySelector('.pj-t');saved=o.scrollTop;
+    const d=D();if(d)d.cardHover(false);
+    n.style.zIndex=3;n.scrollTop=0;setMode('select');n.style.opacity='0';n.classList.add('warm');setSh();setHot(null);
     LBL='DataLink Rover';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});DROP.tip('Projects');
-    if(reduce){if(d){d.mount(slot);d.go('select',{dur:0})}n.classList.add('active');n.classList.remove('warm');n.style.zIndex='';o.classList.remove('active');current='dl';busy=false;PROJ.vis();DROP.show();return}
-    fly.classList.add('on');fly.style.clipPath=insR(cr,30);
-    /* the controller, the link and the floor start "below zero", so they stay hidden until the zoom is a third of the way out */
-    if(d){if(TIER.t>=1)d.lowRes(Dur+300);d.mount(fly);d.keep(Dur+700);d.go('select',{dur:Dur,from:{...d.cardPose(cs),mV:-.6,lV:-.9,lP:-.9,pad:-.8,floor:-.6},ease:Z.f})}
-    const skin=document.createElement('div');skin.className='skin';pw.appendChild(skin);
-    const opt={duration:Dur,easing:Z.e,fill:'both'},clipK=[{clipPath:insR(cr,30)},{clipPath:insR(full,0)}];
-    const clip=n.animate(clipK,opt);fly.animate(clipK,opt);
-    n.animate([{opacity:0},{opacity:1}],{duration:170,easing:'linear',fill:'backwards'});       // the card's words fade out under the new page
-    skin.animate([{opacity:1},{opacity:0,offset:.5},{opacity:0}],{duration:Dur,fill:'both'});later(150,()=>{if(current==='dl'||busy)cT.style.visibility='hidden'});
-    selT.animate([{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${fs.toFixed(4)})`},{transform:'none'}],opt);
+    if(reduce){if(d){d.mount(slot);d.go('select',{dur:0})}n.style.opacity='';n.classList.add('active');n.classList.remove('warm');n.style.zIndex='';o.classList.remove('active');current='dl';busy=false;PROJ.vis();DROP.show();return}
+    root.classList.add('hush');
     const lab=[sel.querySelector('.sel-k'),sel.querySelector('.sel-s'),...picks.map(b=>b.querySelector('.pk-l')),sel.querySelector('.sel-help')];
-    lab.forEach(el=>el.style.opacity='0');
-    o.style.transformOrigin='50% 50%';o.animate([{transform:'none'},{transform:'scale(.94)'}],opt);
-    dimEl.animate([{opacity:0},{opacity:.6}],{duration:Dur,easing:Z.e,fill:'forwards'});
-    await clip.finished.catch(()=>{});
-    if(d)d.mount(slot);fly.getAnimations().forEach(a=>a.cancel());fly.classList.remove('on');fly.style.clipPath='';
-    [o,n,selT,dimEl].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());Object.assign(el.style,{transform:'',transformOrigin:'',clipPath:'',zIndex:''})});
-    skin.remove();o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='dl';busy=false;PROJ.vis();
+    lab.forEach(el=>el.style.opacity='0');selT.style.visibility='hidden';
+    const clk={v:null},cs=cslot.getBoundingClientRect();
+    fly.classList.add('on');
+    /* the controller, the link and the floor start "below zero", so they stay hidden until the rover is well on its way */
+    if(d){d.lowRes(Dur+400);d.mount(fly);d.keep(Dur+900);d.go('select',{dur:Dur,from:{...d.cardPose(cs),mV:-.6,lV:-.9,lP:-.9,pad:-.8,floor:-.6},ease:Z.f,clock:clockOf(clk)})}
+    await frames2();                                   // the new page lays out (invisible) and the 3D view draws once in its layer
+    const ct=cT.getBoundingClientRect(),tf=selT.getBoundingClientRect(),k=parseFloat(getComputedStyle(selT).fontSize)/parseFloat(getComputedStyle(cT).fontSize);
+    const g=ghost(cT,ct);cT.style.visibility='hidden';
+    const opt={duration:Dur,easing:Z.e,fill:'both'},soft='cubic-bezier(.4,0,.2,1)';
+    clk.v=g.animate([{transform:'none'},{transform:`translate(${(tf.left-ct.left).toFixed(1)}px,${(tf.top-ct.top).toFixed(1)}px) scale(${k.toFixed(4)})`}],opt);
+    o.style.transformOrigin=n.style.transformOrigin='50% 50%';   // pages are viewport-sized scroll boxes
+    o.animate([{opacity:1,transform:'none'},{opacity:0,transform:'scale(.965)'}],{duration:Dur*.55,easing:soft,fill:'both'});
+    n.animate([{opacity:0,transform:'scale(1.03)'},{opacity:1,transform:'none'}],{duration:Dur*.75,delay:Dur*.12,easing:soft,fill:'both'});n.style.opacity='';
+    await clk.v.finished.catch(()=>{});
+    if(d)d.mount(slot);fly.classList.remove('on');selT.style.visibility='';g.remove();
+    [o,n].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());Object.assign(el.style,{transform:'',transformOrigin:'',zIndex:'',opacity:''})});
+    root.classList.remove('hush');o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='dl';busy=false;PROJ.vis();
     lab.forEach(el=>el.style.opacity='');fadeIn(lab,0,460);later(90,()=>{if(current==='dl'&&!busy)DROP.show()})}
 
-  /* pick screen (or a story) -> Projects: everything settles back into the card, on one calm spring. The 3D view rides in
-     its own layer again, so the rover stays solid while the page shrinks around it and the card appears underneath. */
+  /* pick screen (or a story) -> Projects: the same, backwards. The rover flies back into its window, the title glides back
+     into the list (from the pick screen; from a story it simply fades in with the list). */
   async function leave(){if(busy||menuOpen||current!=='dl')return;busy=true;
-    const o=page,n=pp,Z=SPR.unzoom,Dur=reduce?1:Z.ms,pw=o.querySelector('.pw'),cT=card.querySelector('.pj-t'),fromSel=mode==='select';
+    const o=page,n=pp,Z=SPR.unzoom,Dur=reduce?1:Z.ms,cT=card.querySelector('.pj-t'),fromSel=mode==='select';
     DROP.hide();LBL='Projects';setLabel(LBL);islandTo(closedLay(),{spr:SPR.size});setHot(null);tags.classList.remove('on');hud.classList.remove('on');cardsOut();
-    n.style.zIndex=1;n.classList.add('warm');n.scrollTop=saved;o.style.zIndex=3;
-    if(reduce){o.classList.remove('active');n.classList.add('active');n.classList.remove('warm');n.style.zIndex=o.style.zIndex='';current='projects';reset();PROJ.prep(n);busy=false;return}
-    const cr=card.getBoundingClientRect(),cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect(),tf=selT.getBoundingClientRect(),full={top:0,left:0,right:innerWidth,bottom:innerHeight};
-    const fs=parseFloat(getComputedStyle(cT).fontSize)/parseFloat(getComputedStyle(selT).fontSize);
-    card.style.opacity='0';const d=D();
-    fly.classList.add('on');fly.style.clipPath=insR(full,0);
-    if(d){if(TIER.t>=1)d.lowRes(Dur+300);d.mount(fly);d.keep(Dur+700);d.go('card',{dur:Dur,goal:{...d.cardPose(cs),mV:-1.3,lV:-1.5,lP:0,pad:-1.2,floor:-1},ease:Z.f})}
-    const skin=document.createElement('div');skin.className='skin';Object.assign(skin.style,{top:o.scrollTop+'px',bottom:'auto',height:innerHeight+'px'});pw.appendChild(skin);
-    const opt={duration:Dur,easing:Z.e,fill:'both'},clipK=[{clipPath:insR(full,0)},{clipPath:insR(cr,30)}];
-    const clip=o.animate(clipK,opt);fly.animate(clipK,opt);
-    skin.animate([{opacity:0},{opacity:0,offset:.2},{opacity:1,offset:.75},{opacity:1}],{duration:Dur,fill:'both'});
+    n.style.zIndex=1;n.style.opacity='0';n.classList.add('warm');n.scrollTop=saved;o.style.zIndex=3;
+    if(reduce){n.style.opacity='';o.classList.remove('active');n.classList.add('active');n.classList.remove('warm');n.style.zIndex=o.style.zIndex='';current='projects';reset();PROJ.prep(n);busy=false;return}
+    root.classList.add('hush');
+    await frames2();                                   // the list lays out (invisible) behind this page first
+    const cs=cslot.getBoundingClientRect(),ct=cT.getBoundingClientRect(),tf=selT.getBoundingClientRect(),k=parseFloat(getComputedStyle(cT).fontSize)/parseFloat(getComputedStyle(selT).fontSize);
+    const d=D(),clk={v:null};
+    fly.classList.add('on');
+    if(d){d.lowRes(Dur+400);d.mount(fly);d.keep(Dur+900);d.go('card',{dur:Dur,goal:{...d.cardPose(cs),mV:-1.3,lV:-1.5,lP:0,pad:-1.2,floor:-1},ease:Z.f,clock:clockOf(clk)})}
     const fade=[...sel.querySelectorAll('.sel-k,.sel-s,.pk-l,.sel-help'),...o.querySelectorAll('.dl-story,.dl-ttl,.dl-cue,.dl-cards')];
-    fade.forEach(el=>el.animate([{opacity:getComputedStyle(el).opacity},{opacity:0}],{duration:180,fill:'forwards'}));
-    if(fromSel)selT.animate([{transform:'none'},{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${fs.toFixed(4)})`}],opt);
-    else selT.animate([{opacity:0},{opacity:0}],{duration:Dur,fill:'both'});
-    n.style.transformOrigin='50% 50%';n.animate([{transform:'scale(.94)'},{transform:'none'}],opt);
-    dimEl.animate([{opacity:.6},{opacity:0}],{duration:Dur,easing:Z.e,fill:'both'});
-    later(Dur*.74,()=>{card.style.opacity='';cT.style.visibility='';o.animate([{opacity:1},{opacity:0}],{duration:Dur*.26,easing:'linear',fill:'forwards'})});
-    await clip.finished.catch(()=>{});
+    fade.forEach(el=>el.animate([{opacity:getComputedStyle(el).opacity},{opacity:0}],{duration:200,fill:'forwards'}));
+    const opt={duration:Dur,easing:Z.e,fill:'both'},soft='cubic-bezier(.4,0,.2,1)';let g=null;
+    if(fromSel){g=ghost(selT,tf);selT.style.visibility='hidden';cT.style.visibility='hidden';
+      g.animate([{transform:'none'},{transform:`translate(${(ct.left-tf.left).toFixed(1)}px,${(ct.top-tf.top).toFixed(1)}px) scale(${k.toFixed(4)})`}],opt)}
+    o.style.transformOrigin=n.style.transformOrigin='50% 50%';   // pages are viewport-sized scroll boxes
+    o.animate([{opacity:1,transform:'none'},{opacity:0,transform:'scale(1.03)'}],{duration:Dur*.6,delay:Dur*.08,easing:soft,fill:'both'});
+    n.animate([{opacity:0},{opacity:1}],{duration:Dur*.7,delay:Dur*.22,easing:soft,fill:'both'});n.style.opacity='';
+    clk.v=n.animate([{transform:'scale(.965)'},{transform:'none'}],opt);
+    await clk.v.finished.catch(()=>{});
     if(d){d.mount(cslot);d.release();d.go('card',{dur:0})}
-    fly.getAnimations().forEach(a=>a.cancel());fly.classList.remove('on');fly.style.clipPath='';
-    [o,n,selT,dimEl].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());Object.assign(el.style,{transform:'',transformOrigin:'',clipPath:'',zIndex:'',opacity:''})});
+    fly.classList.remove('on');cT.style.visibility='';selT.style.visibility='';if(g)g.remove();
+    [o,n].forEach(el=>{el.getAnimations().forEach(a=>a.cancel());Object.assign(el.style,{transform:'',transformOrigin:'',zIndex:'',opacity:''})});
     fade.forEach(el=>el.getAnimations().forEach(a=>a.cancel()));
-    skin.remove();o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='projects';reset();busy=false;PROJ.vis();card.focus({preventScroll:true,focusVisible:false})}
+    root.classList.remove('hush');o.classList.remove('active');n.classList.remove('warm');n.classList.add('active');current='projects';reset();busy=false;PROJ.vis();card.focus({preventScroll:true,focusVisible:false})}
 
   /* pick screen -> a story (or story -> another story): the others fall back and fade, the one you picked takes the screen */
   async function pick(which){if(busy||menuOpen||current!=='dl'||which===mode||!NAME[which])return;busy=true;
@@ -2052,7 +2295,7 @@ TIER.on(()=>LIGHT.resize());
 islandTo(closedLay(),{dur:0});
 orbsBox.style.visibility='hidden';
 revealContent(pageEl('home'));
-if(document.fonts)document.fonts.ready.then(()=>{if(!menuOpen&&!busy)islandTo(closedLay(),{dur:0});prepGlass();HOME.refract();PROJ.load()});else{prepGlass();HOME.refract();PROJ.load()}
+if(document.fonts)document.fonts.ready.then(()=>{if(!menuOpen&&!busy)islandTo(closedLay(),{dur:0});prepGlass();HOME.refract();if(!TOUCH)PROJ.load();LYR.measure()});else{prepGlass();HOME.refract();if(!TOUCH)PROJ.load();LYR.measure()}
 TIER.on(()=>HOME.refract());addEventListener('resize',()=>{clearTimeout(window._hr);window._hr=setTimeout(()=>HOME.refract(),300)});
 TIER.on(()=>{if(!menuOpen&&!busy)islandTo(closedLay(),{dur:0})});
 window.__dbg={GEO,OPT,LIGHT,PAGES,TIER,EM,PROJ,DROP,get current(){return current},get busy(){return busy}};window.__lightSync=()=>LIGHT.sync();

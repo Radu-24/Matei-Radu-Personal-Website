@@ -11,7 +11,7 @@ const PI=Math.PI,TAU=PI*2,clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v)),lerp=(a,b
   ss=(a,b,x)=>{const t=clamp((x-a)/(b-a));return t*t*(3-2*t)},s5=t=>{t=clamp(t);return t*t*t*(t*(t*6-15)+10)},
   wrap=a=>{a=(a+PI)%TAU;if(a<0)a+=TAU;return a-PI},easeIO=k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
 let T=null,ren=null,scene,cam,cv=null,ready=null,ro=null,slot=null,tier=0,W=1,H=1,BW=0,BH=0,bufT=0;
-let raf=0,last=0,lastDraw=0,force=0,shown=false,dirty=true,vt=0,tscale=1,spinR=0,mode='card',tw=null,fixedGoal=null;
+let raf=0,last=0,lastDraw=0,force=0,shown=false,dirty=true,vt=0,tscale=1,spinR=0,mode='card',tw=null,fixedGoal=null,wC=1,wS=0;
 const perf={ms:0,n:0},story={type:'hero',k:0,t:0},hov={r:0,m:0,l:0,rT:0,mT:0,lT:0,cx:0,cy:0,cxT:0,cyT:0},frameSubs=[];
 /* card camera: the model fills its card slot the same way at any slot size (radius and centre come from the model) */
 let R0=1.45,TGT=[0,.8,0];const DIR=(()=>{const v=[0,.34,1],l=Math.hypot(...v);return v.map(x=>x/l)})(),CFOV=26,tanH=d=>Math.tan(d*PI/360);
@@ -346,10 +346,10 @@ function apply(dt){
   if(R){const act=c.rAct,rv=c.rV*(1-ss(.84,1,act));R.root.visible=rv>.004;
   if(R.root.visible){
     const turn=ss(.42,.56,act),drive=Math.pow(ss(.52,1,act),1.35)*11;
-    let yaw=c.rYaw+spinR*c.rTurn+c.rSway*.38*Math.sin(vt*.42)+(mode==='card'?hov.cx*.45*hov.r:0);
+    let yaw=c.rYaw+spinR*c.rTurn+c.rSway*.38*Math.sin(vt*.42)+hov.cx*.45*hov.r*wC;
     if(turn>0){const away=Math.atan2(c.tx-c.cx,c.tz-c.cz);yaw=lerp(yaw,yaw+wrap(away-yaw),turn)}
-    R.root.position.set(c.rX+Math.sin(yaw)*drive,c.rY+(mode==='select'?hov.r*.06:0),c.rZ+Math.cos(yaw)*drive);
-    R.root.rotation.set(c.rPitch+(mode==='card'?hov.cy*.06*hov.r:0),yaw,0,'YXZ');R.root.scale.setScalar(c.rS);
+    R.root.position.set(c.rX+Math.sin(yaw)*drive,c.rY+hov.r*.06*wS,c.rZ+Math.cos(yaw)*drive);
+    R.root.rotation.set(c.rPitch+hov.cy*.06*hov.r*wC,yaw,0,'YXZ');R.root.scale.setScalar(c.rS);
     partsOf(R.root).forEach(g=>{const u=g.userData,e=s5((c.rEx-u.delay)/(1-.38));g.position.copy(u.base).addScaledVector(u.off,e);
       const w=clamp(1-Math.abs((R.stopOf[u.key]??-9)-c.rF));shade(g,c.rDim*(1-w),rv)});
     R.shadow.material.opacity=rv*(1-c.rEx*.6);
@@ -387,6 +387,7 @@ function goalNow(){return fixedGoal||pose()}
 function settled(g){for(const k of KEYS)if(Math.abs(g[k]-cur[k])>(k==='fov'?.01:.0015))return false;return true}
 function busyAnim(){
   if(mode==='card'||mode==='select')return true;
+  if(Math.abs(wC)+Math.abs(wS)>.002&&hov.r>.002)return true;
   if(cur.lV>.01)return true;
   if((cur.rSway>.01&&cur.rV>.01)||(cur.mSway>.01&&cur.mV>.01))return true;
   if(cur.rAct>0&&cur.rAct<1||cur.mAct>0&&cur.mAct<1)return true;
@@ -397,11 +398,11 @@ function busyAnim(){
 let xtra=0;   /* test hook: time added to the next frame while the clock is frozen */
 function frame(ts){raf=0;const raw=last?(ts-last)/1000:0;last=ts;const dt=Math.min(.05,raw)*tscale+Math.min(.05,xtra),dtT=Math.min(.5,raw)*tscale+xtra;xtra=0;vt+=dtT;
   if(lowUntil&&vt>=lowUntil){lowUntil=0;buffer()}
-  const kh=1-Math.exp(-dt*7);hov.r+=(hov.rT-hov.r)*kh;hov.m+=(hov.mT-hov.m)*kh;hov.l+=(hov.lT-hov.l)*kh;hov.cx+=(hov.cxT-hov.cx)*kh;hov.cy+=(hov.cyT-hov.cy)*kh;
+  const kh=1-Math.exp(-dt*7);wC+=((mode==='card'?1:0)-wC)*kh;wS+=((mode==='select'?1:0)-wS)*kh;hov.r+=(hov.rT-hov.r)*kh;hov.m+=(hov.mT-hov.m)*kh;hov.l+=(hov.lT-hov.l)*kh;hov.cx+=(hov.cxT-hov.cx)*kh;hov.cy+=(hov.cyT-hov.cy)*kh;
   if(cur.rTurn>.001)spinR+=dt*(mode==='select'?.32+hov.r*.5:.3+hov.r*.18);
   if(rover&&(mode==='card'||mode==='select'))rover.trd+=dt*hov.r*60;
   const g=goalNow();let moving=false;
-  if(tw){tw.k=clamp(tw.k+dtT*1000/tw.dur);const e=tw.ease(tw.k);for(const k of KEYS)cur[k]=lerp(tw.from[k],g[k],e);moving=true;
+  if(tw){if(tw.clock){const v=tw.clock();tw.k=Math.max(tw.k,v==null?1:clamp(v/tw.dur))}else tw.k=clamp(tw.k+dtT*1000/tw.dur);   /* a clock that stopped (null) means its animation is over */const e=tw.ease(tw.k);for(const k of KEYS)cur[k]=lerp(tw.from[k],g[k],e);moving=true;
     if(tw.k>=1){const r=tw.res;tw=null;r&&r()}}
   else if(!settled(g)){const a=1-Math.exp(-dt*10);for(const k of KEYS)cur[k]+=(g[k]-cur[k])*a;moving=true}
   const anim=busyAnim(),show=shown||vt<force;if(moving)lastMove=vt;if(show&&(moving||anim))watchLod(raw);
@@ -431,7 +432,7 @@ function placeLink(){if(!rover)return;const port=W/H<.9,k=port?'p':'l';if(k===li
    and swapped in at a calm moment. If the device then cannot hold about 30 fps while the view moves, the light ones come back. */
 const idle=f=>('requestIdleCallback' in window)?requestIdleCallback(f,{timeout:3000}):setTimeout(f,500);
 const LOD={lo:{},hi:{},ready:{},level:'lo',watch:null,timer:0,off:false,started:false};
-function maybeHi(){if(LOD.started||LOD.off||tier>1||!remote||/[?&]lod=lo/.test(location.search))return;LOD.started=true;setTimeout(()=>idle(loadHi),1200)}
+function maybeHi(){if(LOD.started||LOD.off||tier>1||matchMedia('(pointer:coarse)').matches||!remote||/[?&]lod=lo/.test(location.search))return;LOD.started=true;setTimeout(()=>idle(loadHi),1200)}
 let lastMove=0;
 async function loadHi(){
   try{const RM=await dataScript('assets/models/rover-hi.js','DL_ROVER_HI','dl-rover-hi');const rh=buildRover(await unpack(RM,true),RM);delete window.DL_ROVER_HI;LOD.ready.rover=rh;armSwap()}
@@ -497,11 +498,11 @@ const api=window.DL3D={init,
     ro.disconnect();ro.observe(el);const r=el.getBoundingClientRect();if(r.width&&r.height)setSize(r.width,r.height,true)},
   setSize,setVis(v){shown=!!v;wake()},keep(ms){force=Math.max(force,vt+ms/1000);wake()},lowRes(ms){lowUntil=vt+ms/1000;buffer();wake()},
   /* go to a mode; with dur>0 the picture eases there from wherever it is now */
-  go(m,{dur=900,ease=easeIO,from,goal}={}){cur.rYaw+=spinR*cur.rTurn;spinR=0;mode=m;fixedGoal=goal||null;
+  go(m,{dur=900,ease=easeIO,from,goal,clock}={}){cur.rYaw+=spinR*cur.rTurn;spinR=0;mode=m;fixedGoal=goal||null;
     const g=goalNow();cur.rYaw=g.rYaw+wrap(cur.rYaw-g.rYaw);cur.mYaw=g.mYaw+wrap(cur.mYaw-g.mYaw);
-    if(from)Object.assign(cur,from);
+    if(from){const y=cur.rYaw;Object.assign(cur,from);cur.rYaw=y}
     if(!dur){Object.assign(cur,g);tw=null;dirty=true;wake();return Promise.resolve()}
-    return new Promise(res=>{tw={from:{...cur},k:0,dur,ease,res};dirty=true;wake()})},
+    return new Promise(res=>{tw={from:{...cur},k:0,dur,ease,res,clock};dirty=true;wake()})},
   cardPose,pose:()=>pose(),snap(){return{...cur}},release(){fixedGoal=null;dirty=true;wake()},
   story(s){Object.assign(story,s);dirty=true;wake()},
   hover(which){hov.rT=which==='rover'?1:0;hov.mT=which==='remote'?1:0;hov.lT=which==='link'?1:0;wake()},
