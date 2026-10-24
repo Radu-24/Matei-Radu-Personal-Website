@@ -1896,16 +1896,17 @@ const HINT=(()=>{const KEY='menu-found',FIRST=40000,SAY_EVERY=7000,SAY_FOR=2500;
   return{found,play}})();
 
 /* ---------- the back gesture ----------
-   The site is one page, so the browser's back button (or a back swipe) would leave it. An extra history entry catches the
-   first back. Browsers skip entries that were added without a real user action since the last one (on a touch screen the
-   finger landing does not count, only a completed tap), so a strong entry is added on the next tap or key press, and right
-   after a back a weak one is added too, in case the browser keeps it. Inside the site, back goes one level up: closes the
-   menu or an open card, leaves a rover story or the rover page, or goes home. On the home page the island turns into a
-   short notice for 3 s; going back again in that time leaves the site. */
-const BACKG=(()=>{let strong=false,warned=false,wT=0;
-  const push=()=>{try{history.pushState({rm:1},'');return true}catch(e){return false}};
-  function onAct(){if(strong||warned)return;if(push())strong=true}
-  ['click','keydown','pointerup','touchend'].forEach(t=>addEventListener(t,onAct,{capture:true,passive:true}));
+   The site is one page, so the browser's back button (or a back swipe) would leave it. Chrome-based browsers skip, on back,
+   every entry of a page that added an entry without a real user action, and after a back they stop counting the earlier
+   action until a new one (a finished tap, a click or a key press; scrolling never counts). So entries are only added right
+   at a tap: each tap tops a small stock back up to DEPTH entries, and a back never adds one. Each back then lands on one of
+   ours (history.state.d tells how many are left) and goes one level up inside the site: closes the menu or an open card,
+   leaves a rover story or the rover page, or goes home. On the home page the island turns into a short notice for 3 s; a
+   back in that time leaves the site, past any of our entries that are left. */
+const BACKG=(()=>{const DEPTH=4;let warned=false,wT=0;
+  const depth=()=>(history.state&&history.state.rm&&history.state.d)||0;
+  function topUp(){if(warned)return;let d=depth();try{while(d<DEPTH)history.pushState({rm:1,d:++d},'')}catch(e){}}
+  ['click','keydown','pointerup','touchend'].forEach(t=>addEventListener(t,topUp,{capture:true,passive:true}));
   function up(){if(menuOpen){closeMenu();return true}
     if(HOME.sheetOpen()){HOME.closeSheet();return true}
     if(current==='dl'){DL.back();return true}
@@ -1913,14 +1914,14 @@ const BACKG=(()=>{let strong=false,warned=false,wT=0;
     return false}
   function note(on){clearTimeout(wT);island.classList.toggle('note',on);
     if(on){const m=TOUCH?'Swipe back again to leave':'Press back again to leave';setLabel(m);islandTo(closedLay(m),{spr:SPR.size});
-      wT=setTimeout(()=>{warned=false;note(false);push()},3000)}
+      wT=setTimeout(()=>{warned=false;note(false)},3000)}
     else if(!menuOpen){setLabel(LBL);islandTo(closedLay(),{spr:SPR.size})}}
-  addEventListener('popstate',()=>{strong=false;
-    if(warned){history.back();return}         // confirmed: step past any of our own entries and out of the site
-    if(busy||up()){push();return}             // stay on the site; the next tap adds a strong entry again
-    warned=true;note(true)});                 // nothing pushed now: the next back leaves
-  island.addEventListener('click',()=>{if(warned){warned=false;note(false);onAct()}},{capture:true});
-  return{get strong(){return strong}}})();
+  addEventListener('popstate',()=>{
+    if(warned){history.back();return}               // confirmed: keep going back, past our entries and out of the site
+    if(busy||up())return;                           // went one level up inside the site
+    warned=true;note(true)});                       // on the home page: ask first
+  island.addEventListener('click',()=>{if(warned){warned=false;note(false);topUp()}},{capture:true});
+  return{get depth(){return depth()}}})();
 
 /* ---------- projects: the lyrics list ----------
    The track holds one snap point per project; the stage inside it is pinned. Where the scroll sits picks the project in
